@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.shutu</groupId>
+        <artifactId>shutu</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+    </parent>
+
+
+
+    <groupId>com.shutu</groupId>
+    <artifactId>shutu-commons</artifactId>
+    <packaging>pom</packaging>
+
+    <modules>
+        <module>shutu-commons-dependencies</module>
+        <module>shutu-commons-security</module>
+        <module>shutu-commons-swagger</module>
+        <module>shutu-commons-tools</module>
+        <module>shutu-commons-mybatis</module>
+        <module>shutu-commons-dynamic-datasource</module>
+    </modules>
+
+
+
+
+</project>
