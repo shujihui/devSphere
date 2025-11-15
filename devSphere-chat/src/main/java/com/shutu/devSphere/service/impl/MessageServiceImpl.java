@@ -2,16 +2,29 @@ package com.shutu.devSphere.service.impl;
 
 import cn.hutool.core.collection.ListUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.baomidou.mybatisplus.extension.toolkit.Db;
+import com.shutu.commons.security.user.SecurityUser;
+import com.shutu.commons.tools.exception.CommonException;
+import com.shutu.commons.tools.exception.ErrorCode;
 import com.shutu.devSphere.mapper.MessageMapper;
+import com.shutu.devSphere.mapper.RoomMapper;
+import com.shutu.devSphere.model.dto.chat.CursorPage;
 import com.shutu.devSphere.model.dto.chat.MessageQueryRequest;
 import com.shutu.devSphere.model.entity.Message;
+import com.shutu.devSphere.model.entity.Room;
+import com.shutu.devSphere.model.entity.UserRoomRelate;
 import com.shutu.devSphere.model.vo.ws.response.ChatMessageResp;
 import com.shutu.devSphere.service.MessageService;
+import com.shutu.devSphere.service.RoomService;
+import com.shutu.devSphere.service.UserRoomRelateService;
 import com.shutu.devSphere.websocket.adapter.WSAdapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,38 +35,111 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
         implements MessageService {
 
     private final WSAdapter wsAdapter;
+    private final UserRoomRelateService userRoomRelateService;
 
     @Override
-    public Page<ChatMessageResp> listMessageVoByPage(MessageQueryRequest messageQueryRequest) {
+    public CursorPage<ChatMessageResp> listMessageVoByPage(MessageQueryRequest messageQueryRequest) {
         Long roomId = messageQueryRequest.getRoomId();
-        // 获取当前页码
-        int current = messageQueryRequest.getCurrent();
-        // 获取每页大小
-        int size = messageQueryRequest.getPageSize();
+        int size = messageQueryRequest.getPageSize() != null ? messageQueryRequest.getPageSize() : 20;
+        String cursor = messageQueryRequest.getCursor();
 
         if (roomId == null) {
-            // 创建新的分页对象，用于存储转换后的消息对象
-            Page<ChatMessageResp> messageVoPage = new Page<>(0, size, 0);
-            // 将转换后的消息对象列表设置为新的分页对象的记录
-            messageVoPage.setRecords(null);
-            return messageVoPage;
+            CursorPage<ChatMessageResp> emptyPage = new CursorPage<>();
+            emptyPage.setRecords(List.of());
+            emptyPage.setNextCursor(null);
+            emptyPage.setHasMore(false);
+            return emptyPage;
         }
 
-        // 创建分页对象
-        Page<Message> messagePage = this.page(new Page<>(current, size),
-                // 创建查询条件对象
-                new LambdaQueryWrapper<Message>().eq(Message::getRoomId, roomId).orderByDesc(Message::getCreateTime));
-        // 获取分页结果中的消息列表 翻转
-        List<Message> messageList = ListUtil.reverse(messagePage.getRecords());
-        // 将消息列表转换为 ChatMessageResp 对象列表
-        List<ChatMessageResp> chatMessageRespList = messageList.stream().map(item -> wsAdapter.getMessageVo(item.getFromUid(),item.getContent()))
+        // 获取当前登录用户ID
+        Long loginUserId = SecurityUser.getUserId();
+        // 查找此房间的最新一条消息
+        Room room = Db.lambdaQuery(Room.class).select(Room::getLastMsgId)
+                .eq(Room::getId, roomId).one();
+        Long latestMessageId = (room != null) ? room.getLastMsgId() : null;
+        // 更新用户在该房间的最新已读消息
+        boolean update = userRoomRelateService.lambdaUpdate().eq(UserRoomRelate::getRoomId, roomId)
+                .eq(UserRoomRelate::getUserId, loginUserId)
+                .set(UserRoomRelate::getLatestReadMsgId, latestMessageId)
+                .update();
+        if (!update){
+            throw new CommonException("更新已读消息失败", ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+
+        int fetchSize = size + 1;
+        LambdaQueryWrapper<Message> wrapper = new LambdaQueryWrapper<Message>()
+                .eq(Message::getRoomId, roomId);
+
+        // 如果 cursor 不为 null，则查询 ID < cursor 的消息 (更早的消息)
+        if (cursor != null) {
+            try {
+                wrapper.lt(Message::getId, Long.parseLong(cursor));
+            } catch (NumberFormatException e) {
+                // 如果游标格式错误，返回空
+                CursorPage<ChatMessageResp> emptyPage = new CursorPage<>();
+                emptyPage.setRecords(List.of());
+                emptyPage.setNextCursor(null);
+                emptyPage.setHasMore(false);
+                return emptyPage;
+            }
+        }
+        // 核心查询：按ID倒序（最新->最旧），限制 N+1 条
+        wrapper.orderByDesc(Message::getId);
+        wrapper.last("LIMIT " + fetchSize);
+
+        List<Message> messageList = this.list(wrapper);
+
+        // 判断是否还有更多
+        boolean hasMore = messageList.size() > size;
+        if (hasMore) {
+            // 移除多查的那一条，它仅用于判断
+            messageList.remove(messageList.size() - 1);
+        }
+
+        List<ChatMessageResp> chatMessageRespList = messageList.stream()
+                .map(wsAdapter::getMessageVo)
                 .collect(Collectors.toList());
-        // 创建新的分页对象，用于存储转换后的消息对象
-        Page<ChatMessageResp> messageVoPage = new Page<>(current, size, messagePage.getTotal());
-        // 将转换后的消息对象列表设置为新的分页对象的记录
-        messageVoPage.setRecords(chatMessageRespList);
-        // 返回新的分页对象
-        return messageVoPage;
+
+        // 反转列表，使之符合前端渲染顺序 (最旧 -> 最新)
+        List<ChatMessageResp> finalRecords = ListUtil.reverse(chatMessageRespList);
+
+        // 计算下一次查询的游标 (即本次查询结果中最旧的那条消息的ID)
+        String nextCursor = null;
+        if (!messageList.isEmpty()) {
+            // 注意：这里用 messageList (反转前)，获取最后一条 (最旧的)
+            nextCursor = String.valueOf(messageList.get(messageList.size() - 1).getId());
+        }
+
+        // 组装返回
+        CursorPage<ChatMessageResp> cursorPage = new CursorPage<>();
+        cursorPage.setRecords(finalRecords);
+        cursorPage.setNextCursor(hasMore ? nextCursor : null); // 如果没有更多了，游标设为null
+        cursorPage.setHasMore(hasMore);
+
+        return cursorPage;
+    }
+
+
+    /**
+     * 将用户在某个会话中的消息标记为已读
+     */
+    @Override
+    @Transactional
+    public void markConversationAsRead(Long roomId) {
+        // 获取当前登录用户ID
+        Long loginUserId = SecurityUser.getUserId();
+        // 查找此房间的最新一条消息
+        Room room = Db.lambdaQuery(Room.class).select(Room::getLastMsgId)
+                .eq(Room::getId, roomId).one();
+        Long latestMessageId = (room != null) ? room.getLastMsgId() : null;
+        // 更新用户在该房间的最新已读消息
+        boolean update = userRoomRelateService.lambdaUpdate().eq(UserRoomRelate::getRoomId, roomId)
+                .eq(UserRoomRelate::getUserId, loginUserId)
+                .set(UserRoomRelate::getLatestReadMsgId, latestMessageId)
+                .update();
+        if (!update){
+            throw new CommonException("更新已读消息失败", ErrorCode.INTERNAL_SERVER_ERROR);
+        }
     }
 }
 

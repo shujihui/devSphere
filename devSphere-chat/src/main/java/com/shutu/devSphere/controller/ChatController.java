@@ -1,13 +1,11 @@
 package com.shutu.devSphere.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.shutu.commons.security.user.SecurityUser;
 import com.shutu.commons.tools.utils.Result;
 import com.shutu.commons.tools.validator.ValidatorUtils;
 import com.shutu.commons.tools.validator.group.DefaultGroup;
-import com.shutu.devSphere.model.dto.chat.GroupCreateRequestDTO;
-import com.shutu.devSphere.model.dto.chat.MessageQueryRequest;
-import com.shutu.devSphere.model.dto.chat.RoomQueryRequest;
-import com.shutu.devSphere.model.dto.chat.SearchRequestDTO;
+import com.shutu.devSphere.model.dto.chat.*;
 import com.shutu.devSphere.model.dto.friend.FriendQueryRequest;
 import com.shutu.devSphere.model.vo.friend.AddFriendVo;
 import com.shutu.devSphere.model.vo.friend.FriendContentVo;
@@ -18,10 +16,8 @@ import com.shutu.devSphere.service.RoomService;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
 
@@ -50,14 +46,14 @@ public class ChatController {
 
 
     /**
-     * 分页获取用户房间消息列表
+     * 分页获取用户房间消息列表 (改为游标查询)
      * @param messageQueryRequest
      * @return
      */
     @PostMapping("/message/page/vo")
-    public Result<Page<ChatMessageResp>> listMessageVoByPage(@RequestBody MessageQueryRequest messageQueryRequest) {
-        Page<ChatMessageResp> messageVoPage = messageService.listMessageVoByPage(messageQueryRequest);
-        return new Result<Page<ChatMessageResp>>().ok(messageVoPage);
+    public Result<CursorPage<ChatMessageResp>> listMessageVoByPage(@RequestBody MessageQueryRequest messageQueryRequest) {
+        CursorPage<ChatMessageResp> cursorPage = messageService.listMessageVoByPage(messageQueryRequest);
+        return new Result<CursorPage<ChatMessageResp>>().ok(cursorPage);
     }
 
 
@@ -96,5 +92,20 @@ public class ChatController {
     public Result<AddFriendVo> searchForAdd(@RequestBody SearchRequestDTO searchRequestDTO) {
         AddFriendVo addFriendVo = roomService.searchForAdd(searchRequestDTO.getQuery());
         return new Result<AddFriendVo>().ok(addFriendVo);
+    }
+
+
+    /**
+     * 标记会话为已读
+     * @return
+     */
+    @PostMapping("/read")
+    public Result<Void> markConversationAsRead(@RequestParam("roomId") String roomId) {
+        try {
+            messageService.markConversationAsRead(Long.valueOf(roomId));
+            return new Result<Void>().ok();
+        } catch (Exception e) {
+            return  new Result<Void>().error("标记已读失败: " + e.getMessage());
+        }
     }
 }

@@ -1,5 +1,7 @@
 package com.shutu.devSphere.model.vo.ws.response;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,6 +29,7 @@ public class ChatMessageResp {
     /**
      * 房间id
      */
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long roomId;
 
     @Data
@@ -34,6 +37,7 @@ public class ChatMessageResp {
         // 用户名称
         private String username;
         // 用户id
+        @JsonSerialize(using = ToStringSerializer.class)
         private Long uid;
         // 头像
         private String avatar;
@@ -42,6 +46,7 @@ public class ChatMessageResp {
     @Data
     public static class Message {
         // 消息id
+        @JsonSerialize(using = ToStringSerializer.class)
         private Long id;
         // 消息发送时间
         private Date sendTime;
