@@ -17,8 +17,6 @@ import lombok.NoArgsConstructor;
 public class WSBaseResp<T> {
     /**
      * ws推送给前端的消息
-     *
-     * @see WSReqTypeEnum
      */
     private Integer type;
     private T data;

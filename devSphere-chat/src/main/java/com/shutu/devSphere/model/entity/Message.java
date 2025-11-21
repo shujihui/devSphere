@@ -27,6 +27,8 @@ public class Message implements Serializable {
     @TableId(type = IdType.AUTO)
     private Long id;
 
+    private Long serverMsgId;
+
     /**
      * 会话表id
      */

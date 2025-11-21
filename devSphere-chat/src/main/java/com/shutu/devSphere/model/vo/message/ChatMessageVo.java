@@ -15,5 +15,9 @@ public class ChatMessageVo {
      */
     private Integer type;
     private String content;
+    /**
+     *消息的临时ID，由前端生成，用于ACK确认
+     */
+    private String tempId;
 
 }

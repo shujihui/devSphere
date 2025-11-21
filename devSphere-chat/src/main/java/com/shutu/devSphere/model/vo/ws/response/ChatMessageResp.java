@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 import java.util.Date;
 
 /**
- * 消息
+ * 消息响应实体
  */
 @Data
 @Builder
@@ -31,6 +31,11 @@ public class ChatMessageResp {
      */
     @JsonSerialize(using = ToStringSerializer.class)
     private Long roomId;
+
+    /**
+     * 消息的临时ID，原样返回给前端，用于 ACK
+     */
+    private String tempId;
 
     @Data
     public static class UserInfo {

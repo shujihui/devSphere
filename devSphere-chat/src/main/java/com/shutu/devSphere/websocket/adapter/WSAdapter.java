@@ -14,14 +14,11 @@ import com.shutu.devSphere.model.vo.ws.response.ChatMessageResp;
 import com.shutu.devSphere.model.vo.ws.response.WSBaseResp;
 import com.shutu.devSphere.service.RoomFriendService;
 import com.shutu.feign.UserFeignClient;
-import io.netty.handler.timeout.IdleStateEvent;
-import io.netty.handler.timeout.IdleStateHandler;
 import jakarta.annotation.Resource;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
-import java.util.concurrent.TimeUnit;
 
 
 /**
@@ -94,9 +91,8 @@ public class WSAdapter {
     }
 
     /**
-     * 构建消息内容及用户信息结构体
-     * @param UserId 发送消息的用户id
-     * @param content 消息内容
+     * 构建消息内容及用户信息结构体 (基础方法)
+     * @param message 消息实体
      * @return ChatMessageResp
      */
     @NotNull
@@ -108,22 +104,53 @@ public class WSAdapter {
         UserDetail user = result.getData();
         // 创建UserInfo对象
         ChatMessageResp.UserInfo userInfo = new ChatMessageResp.UserInfo();
-        // 设置用户名、ID和头像
-        userInfo.setUsername(user.getUsername());
-        userInfo.setUid(user.getId());
-        userInfo.setAvatar(user.getHeadUrl());
+        if(user != null) {
+            // 设置用户名、ID和头像
+            userInfo.setUsername(user.getUsername());
+            userInfo.setUid(user.getId());
+            userInfo.setAvatar(user.getHeadUrl());
+        } else {
+            // 兜底逻辑
+            userInfo.setUid(message.getFromUid());
+            userInfo.setUsername("未知用户");
+            userInfo.setAvatar("");
+        }
+
         // 和发送者信息
         chatMessageResp.setFromUser(userInfo);
         // 创建Message对象
         ChatMessageResp.Message messageVO = new ChatMessageResp.Message();
+
+        //设置 ID
+        messageVO.setId(message.getId());
+
         // 设置私信内容
         messageVO.setContent(message.getContent());
         messageVO.setSendTime(message.getCreateTime());
+        // 设置消息类型
+        messageVO.setType(message.getType());
+
         // 设置消息对象
         chatMessageResp.setMessage(messageVO);
+
+        // 设置房间ID
+        chatMessageResp.setRoomId(message.getRoomId());
 
         return chatMessageResp;
     }
 
-
+    /**
+     * 从 Message 实体 + tempId 构建响应
+     * @param message 消息实体 (已持久化，包含真实的ID和时间)
+     * @param tempId 临时ID (用于前端ACK)
+     * @return ChatMessageResp
+     */
+    @NotNull
+    public ChatMessageResp buildMessageResp(Message message, String tempId) {
+        // 复用 getMessageVo 构建基础信息
+        ChatMessageResp resp = getMessageVo(message);
+        // 设置 tempId
+        resp.setTempId(tempId);
+        return resp;
+    }
 }
