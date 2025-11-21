@@ -1,82 +1,142 @@
-# Dev-Sphere 开发框架
+# devSphere-chat - 高性能实时聊天服务
 
-## 项目简介
+<div align="center">
 
-Dev-Sphere 是一个基于 Spring Cloud Alibaba 的微服务开发框架，包含完整的权限管理、代码生成、系统工具、即时通讯等模块。适用于企业级后台管理系统开发，提供完善的权限控制、数据字典、日志管理等功能。
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green)](#)
+[![Netty](https://img.shields.io/badge/Netty-4.1.76.Final-blue)](#)
+[![MyBatis Plus](https://img.shields.io/badge/MyBatis%20Plus-3.5.7-orange)](#)
+[![Redis](https://img.shields.io/badge/Redis-Streaming-red)](#)
 
-## 技术架构
+</div>
 
-采用主流微服务架构设计：
-- Spring Boot 2.7.x
-- Spring Cloud Alibaba 2021.0.4
-- Nacos 服务注册与配置中心
-- Sentinel 流量防护
-- Gateway 网关服务
-- MyBatis Plus 数据访问层
-- Redis 缓存服务
-- WebSocket 即时通讯
+## 🌟 项目亮点
 
-## 功能模块
+devSphere-chat 是一个基于 Spring Boot 构建的企业级实时聊天服务，专为高并发、低延迟的即时通讯场景设计。它不仅提供了完整的私聊和群聊功能，还通过创新的技术架构确保了消息的可靠传输和系统的稳定性。
 
-### 权限管理 (shutu-auth)
-- 用户管理：用户创建、权限分配、密码管理
-- 角色管理：角色定义、权限绑定
-- 菜单管理：系统菜单配置、权限标识
-- 部门管理：组织架构维护
-- 日志管理：操作日志、登录日志记录
+### 🚀 核心优势
 
-### 系统工具 (shutu-commons)
-- 动态数据源：支持多数据源切换
-- 代码生成：根据表结构自动生成CRUD代码
-- 文件导出：Excel导入导出支持
-- 参数管理：系统参数配置
-- 消息通知：系统消息推送
+- **高并发支持**: 基于 Netty 的异步事件驱动模型，轻松应对万级并发连接
+- **消息可靠性**: Redis Stream 消息队列 + 死信队列机制，确保消息零丢失
+- **架构先进**: 事件驱动 + 异步处理模式，提升系统整体性能
+- **扩展性强**: 模块化设计，易于定制和二次开发
 
-### 即时通讯 (zhiLiao)
-- 单聊功能：用户间点对点通信
-- 群聊功能：支持多人聊天室
-- 好友管理：好友添加、分组管理
-- 消息推送：基于WebSocket的实时消息通知
-- 在线状态：实时显示用户在线状态
+## 💬 聊天服务详解
 
-## 项目结构
+### 📱 功能特性
 
+#### 基础聊天功能
+- **私聊(P2P)**: 用户之间一对一实时消息传递
+- **群聊(Room)**: 支持多人同时在线聊天
+- **多消息类型**: 文本、图片、语音、视频、文件等多种消息格式
+- **离线消息**: 自动存储和推送用户离线期间的消息
+- **消息状态**: 已读/未读标记、消息撤回等状态管理
+
+#### 社交功能
+- **好友管理**: 添加、删除、备注好友关系
+- **群组管理**: 创建、解散群组，成员管理
+- **会话列表**: 实时展示私聊和群聊会话列表
+- **消息通知**: 系统通知、好友申请、群聊邀请等提醒
+
+### 🏗️ 技术架构
+
+```text
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   WebSocket     │    │   HTTP API      │    │   定时任务      │
+│   (Netty)       │    │   (Spring MVC)  │    │   (Scheduler)   │
+└────────┬────────┘    └────────┬────────┘    └────────┬────────┘
+         │                      │                      │
+         └──────────────────────┼──────────────────────┘
+                                │
+                     ┌─────────▼─────────┐
+                     │  业务逻辑层        │
+                     │  (Service Layer)  │
+                     └─────────┬─────────┘
+                               │
+          ┌────────────────────┼────────────────────┐
+          │                    │                    │
+┌─────────▼─────────┐ ┌────────▼────────┐ ┌─────────▼─────────┐
+│   MySQL数据库      │ │   Redis缓存      │ │   Feign远程调用    │
+│  (持久化存储)      │ │  (消息队列)      │ │  (用户服务)        │
+└───────────────────┘ └─────────────────┘ └───────────────────┘
 ```
-├── shutu-admin        # 管理后台模块
-├── shutu-auth         # 权限管理模块
-├── shutu-commons      # 公共组件模块
-├── shutu-gateway      # API网关模块
-├── shutu-module       # 业务模块
-└── zhiLiao           # 即时通讯模块
+
+
+### 🔧 核心组件解析
+
+#### 消息处理引擎
+系统采用事件驱动架构处理各类消息：
+
+- [`PrivateMessageListener`](file://D:\code\SureWin\devSphere-chat\src\main\java\com\shutu\devSphere\common\listener\PrivateMessageListener.java#L23-L99): 私聊消息监听器，负责处理点对点消息的持久化
+- [`GroupMessageListener`](file://D:\code\SureWin\devSphere-chat\src\main\java\com\shutu\devSphere\common\listener\GroupMessageListener.java#L36-L86): 群聊消息监听器，处理群组内消息广播
+- [`MessageStreamListener`](file://D:\code\SureWin\devSphere-chat\src\main\java\com\shutu\devSphere\common\listener\MessageStreamListener.java#L39-L228): Redis Stream 消息监听器，消费消息队列中的数据
+
+#### 消息传输保障
+为了确保消息的可靠传输，系统实现了完整的消息生命周期管理：
+
+1. **消息入队**: 通过 Redis Stream 将消息放入队列
+2. **异步处理**: 监听器异步消费队列消息并持久化到数据库
+3. **异常处理**: 异常消息自动进入死信队列等待人工处理
+4. **状态同步**: 实时更新消息状态和用户会话信息
+
+#### WebSocket 通信层
+基于 Netty 构建的高性能 WebSocket 服务器：
+
+- [`NettyServer`](file://D:\code\SureWin\devSphere-chat\src\main\java\com\shutu\devSphere\websocket\NettyServer.java#L23-L93): WebSocket 服务器启动配置
+- [`WebSocketServerHandler`](file://D:\code\SureWin\devSphere-chat\src\main\java\com\shutu\devSphere\websocket\Handler\WebSocketServerHandler.java#L17-L99): WebSocket 连接处理器
+- [`AuthHandler`](file://D:\code\SureWin\devSphere-chat\src\main\java\com\shutu\devSphere\websocket\Handler\AuthHandler.java#L19-L100): 连接认证处理器
+
+### 📦 数据模型设计
+
+系统采用清晰的数据模型来管理聊天相关信息：
+
+- [`Message`](file://D:\code\SureWin\devSphere-chat\src\main\java\com\shutu\devSphere\model\entity\Message.java#L17-L83): 消息实体，存储所有聊天内容
+- [`Room`](file://D:\code\SureWin\devSphere-chat\src\main\java\com\shutu\devSphere\model\entity\Room.java#L17-L66): 房间实体，表示聊天会话
+- [`RoomFriend`](file://D:\code\SureWin\devSphere-chat\src\main\java\com\shutu\devSphere\model\entity\RoomFriend.java#L17-L66): 私聊房间关联
+- [`RoomGroup`](file://D:\code\SureWin\devSphere-chat\src\main\java\com\shutu\devSphere\model\entity\RoomGroup.java#L14-L65): 群聊房间详情
+- [`UserRoomRelate`](file://D:\code\SureWin\devSphere-chat\src\main\java\com\shutu\devSphere\model\entity\UserRoomRelate.java#L17-L56): 用户与房间的关系
+
+### 🔄 消息流转流程
+
+```mermaid
+sequenceDiagram
+    participant C as 客户端
+    participant W as WebSocket服务
+    participant R as Redis Stream
+    participant L as 消息监听器
+    participant DB as 数据库
+    
+    C->>W: 发送消息
+    W->>R: 消息入队
+    R->>L: 异步消费
+    L->>DB: 持久化存储
+    DB-->>L: 返回结果
+    L->>W: 推送确认
+    W->>C: ACK确认
+    L->>W: 广播消息
+    W->>C: 推送消息
 ```
 
-## 开发规范
 
-1. 代码风格：遵循阿里巴巴Java开发规范
-2. 日志管理：使用SLF4J记录系统日志
-3. 异常处理：统一异常处理机制
-4. 数据访问：使用MyBatis Plus进行数据库操作
-5. 接口文档：通过Swagger生成API文档
+## 🛠️ 部署要求
 
-## 部署说明
+- Java 17+
+- MySQL 8.0+
+- Redis 6.0+
+- Maven 3.6+
+- Nacos Server 2.x
 
-1. 数据库：MySQL 5.7+，创建对应数据库并执行初始化脚本
-2. 中间件：安装Redis、RabbitMQ等基础组件
-3. 配置中心：在Nacos中配置各模块配置文件
-4. 服务启动：按顺序启动注册中心、配置中心、基础服务、业务服务
+## 🚀 快速开始
 
-## 版本更新
+1. 克隆项目代码
+2. 配置数据库和 Redis 连接信息
+3. 启动 Nacos 服务注册中心
+4. 运行应用启动类
+5. WebSocket 服务默认监听 9000 端口
 
-查看 [CHANGELOG.md](CHANGELOG.md) 获取完整的版本更新记录
+## 📄 许可证
 
-## 贡献指南
+Apache License Version 2.0
 
-欢迎提交代码贡献，请遵循以下流程：
-1. Fork 项目仓库
-2. 创建功能分支
-3. 提交代码变更
-4. 创建 Pull Request
+---
 
-## 许可协议
-
-本项目采用 Apache-2.0 许可协议，详情请查看 [LICENSE](LICENSE) 文件
+**devSphere-chat** - 构建下一代企业级实时通信解决方案
