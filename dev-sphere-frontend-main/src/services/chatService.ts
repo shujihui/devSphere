@@ -26,6 +26,8 @@ export const MessageContentType = {
   TEXT: 1,
   IMAGE: 3,
   FILE: 4,
+  VOICE_CALL: 5,
+  VIDEO_CALL: 6,
 } as const
 
 export type MessageContentType = typeof MessageContentType[keyof typeof MessageContentType]
@@ -284,5 +286,21 @@ export const chatService = {
     return request.post('/devSphere/chat/message/recall', null, {
       params: { messageId }
     })
-  }
+  },
+
+  /**
+   * 邀请用户进群
+   * POST /chat/group/invite
+   */
+  async inviteToGroup(roomId: number, userIds: string[]): Promise<void> {
+    return request.post('/devSphere/group/invite', { roomId, userIds })
+  },
+
+  /**
+   * 移出群成员
+   * POST /chat/group/kick
+   */
+  async kickFromGroup(roomId: number, uid: string): Promise<void> {
+    return request.post('/devSphere/group/kick', { roomId, uid })
+  },
 }

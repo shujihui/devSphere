@@ -5,6 +5,7 @@ import { useUserStore } from '../stores/userStore'
 import { useNotificationStore } from '../stores/notificationStore' // 1. 引入
 import AuthModal from './AuthModal.vue'
 import NotificationDropdown from './NotificationDropdown.vue' // 2. 引入
+import { formatImageUrl } from '@/utils/image'
 
 const emit = defineEmits(['open-login'])
 const router = useRouter()
@@ -91,7 +92,7 @@ const closeNotifications = () => {
              <div class="text-sm font-bold text-vibrant-main">{{ userStore.displayName }}</div>
              <div class="text-xs text-vibrant-muted">Lv.5 架构师</div>
            </div>
-           <img :src="userStore.userAvatar" class="h-10 w-10 rounded-full bg-slate-100 border-2 border-white shadow-sm transition-transform group-hover:scale-105 object-cover" />
+           <img :src="formatImageUrl(userStore.userAvatar)" class="h-10 w-10 rounded-full bg-slate-100 border-2 border-white shadow-sm transition-transform group-hover:scale-105 object-cover" />
            
            <div class="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 p-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
               <router-link to="/profile" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-slate-100 text-sm font-medium text-vibrant-main">个人中心</router-link>

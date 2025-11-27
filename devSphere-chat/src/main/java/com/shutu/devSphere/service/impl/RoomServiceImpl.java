@@ -11,6 +11,8 @@ import com.shutu.commons.tools.exception.ErrorCode;
 import com.shutu.commons.tools.utils.Result;
 import com.shutu.devSphere.manager.FriendSearchStrategy;
 import com.shutu.devSphere.model.dto.chat.GroupCreateRequestDTO;
+import com.shutu.devSphere.model.dto.group.GroupInviteRequestDTO;
+import com.shutu.devSphere.model.dto.group.GroupKickRequestDTO;
 import com.shutu.devSphere.model.dto.group.GroupUpdateRequestDTO;
 import com.shutu.devSphere.model.enums.chat.MessageTypeEnum;
 import com.shutu.devSphere.model.vo.group.GroupDetailVo;
@@ -707,6 +709,105 @@ public class RoomServiceImpl extends ServiceImpl<RoomMapper, Room>
 
         if (!updated) {
             throw new CommonException("操作失败", ErrorCode.DATA_NOT_EXIST);
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void inviteToGroup(GroupInviteRequestDTO dto) {
+        Long loginUserId = SecurityUser.getUserId();
+        String username = SecurityUser.getUser().getUsername();
+        Long roomId = dto.getRoomId();
+        List<Long> userIds = dto.getUserIds();
+
+        if (userIds == null || userIds.isEmpty()) {
+            return;
+        }
+
+        // 1. 检查群是否存在
+        RoomGroup group = roomGroupService.getOne(new LambdaQueryWrapper<RoomGroup>()
+                .eq(RoomGroup::getRoomId, roomId));
+        if (group == null) {
+            throw new CommonException("群聊不存在", ErrorCode.GROUP_NOT_FOUND);
+        }
+
+        // 2. 检查邀请人是否在群内
+        UserRoomRelate inviterRelate = userRoomRelateService.getOne(new LambdaQueryWrapper<UserRoomRelate>()
+                .eq(UserRoomRelate::getRoomId, roomId)
+                .eq(UserRoomRelate::getUserId, loginUserId));
+        if (inviterRelate == null) {
+            throw new CommonException("您不在该群聊中，无法邀请成员", ErrorCode.FORBIDDEN);
+        }
+
+        // 3. 过滤掉已经在群内的用户
+        List<UserRoomRelate> existingRelates = userRoomRelateService.list(new LambdaQueryWrapper<UserRoomRelate>()
+                .eq(UserRoomRelate::getRoomId, roomId)
+                .in(UserRoomRelate::getUserId, userIds));
+        Set<Long> existingUserIds = existingRelates.stream()
+                .map(UserRoomRelate::getUserId)
+                .collect(Collectors.toSet());
+
+        List<Long> newUserIds = userIds.stream()
+                .filter(uid -> !existingUserIds.contains(uid))
+                .collect(Collectors.toList());
+
+        if (newUserIds.isEmpty()) {
+            return;
+        }
+
+        // 4. 批量添加成员 (user_room_relate)
+        List<UserRoomRelate> newRelates = newUserIds.stream()
+                .map(userId -> {
+                    UserRoomRelate relate = new UserRoomRelate();
+                    relate.setUserId(userId);
+                    relate.setRoomId(roomId);
+                    return relate;
+                })
+                .collect(Collectors.toList());
+        userRoomRelateService.saveBatch(newRelates);
+
+        // 5. 批量添加群聊关系 (user_friend_relate)
+        List<UserFriendRelate> newFriendRelates = newUserIds.stream()
+                .map(userId -> {
+                    UserFriendRelate friendRelate = new UserFriendRelate();
+                    friendRelate.setUserId(userId);
+                    friendRelate.setRelateId(roomId);
+                    friendRelate.setRelateType(RoomTypeEnum.GROUP.getType());
+                    return friendRelate;
+                })
+                .collect(Collectors.toList());
+        userFriendRelateService.saveBatch(newFriendRelates);
+
+        // 6. 发送系统消息
+        // 获取被邀请人的名字 (为了消息友好)
+        Result<List<SysUserDTO>> usersRes = userFeignClient.listByIds(newUserIds);
+        String invitedNames = "新成员";
+        if (usersRes.getData() != null) {
+            invitedNames = usersRes.getData().stream()
+                    .map(SysUserDTO::getRealName)
+                    .limit(3)
+                    .collect(Collectors.joining(", "));
+            if (usersRes.getData().size() > 3) {
+                invitedNames += " 等";
+            }
+        }
+
+        Message msg = new Message();
+        msg.setRoomId(roomId);
+        msg.setFromUid(loginUserId);
+        msg.setType(MessageTypeEnum.TEXT.getType());
+        msg.setContent(username + " 邀请 " + invitedNames + " 加入群聊");
+        messageService.save(msg);
+
+        // 更新房间活跃时间
+        Room room = this.getById(roomId);
+        if (room != null) {
+            room.setLastMsgId(msg.getId());
+            room.setActiveTime(msg.getCreateTime());
+            this.updateById(room);
+            room.setLastMsgId(msg.getId());
+            room.setActiveTime(msg.getCreateTime());
+            this.updateById(room);
         }
     }
 }

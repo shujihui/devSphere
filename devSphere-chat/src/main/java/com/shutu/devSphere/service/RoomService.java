@@ -8,6 +8,8 @@ import com.shutu.commons.tools.exception.ErrorCode;
 import com.shutu.devSphere.model.dto.chat.GroupCreateRequestDTO;
 import com.shutu.devSphere.model.dto.chat.RoomQueryRequest;
 import com.shutu.devSphere.model.dto.friend.FriendQueryRequest;
+import com.shutu.devSphere.model.dto.group.GroupInviteRequestDTO;
+import com.shutu.devSphere.model.dto.group.GroupKickRequestDTO;
 import com.shutu.devSphere.model.dto.group.GroupUpdateRequestDTO;
 import com.shutu.devSphere.model.entity.Room;
 import com.shutu.devSphere.model.entity.UserRoomRelate;
@@ -92,4 +94,17 @@ public interface RoomService extends IService<Room> {
      * @param userId 用户ID
      */
     void clearHistory(Long roomId, Long userId);
+
+
+    /**
+     * 邀请进群
+     * @param dto
+     */
+    void inviteToGroup(GroupInviteRequestDTO dto);
+
+    /**
+     * 移出群成员
+     * @param dto
+     */
+    void kickFromGroup(GroupKickRequestDTO dto);
 }
