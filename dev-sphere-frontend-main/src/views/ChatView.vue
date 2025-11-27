@@ -1,29 +1,25 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import ChatList from '../components/chat/ChatList.vue'
 import ChatBox from '../components/chat/ChatBox.vue'
 import AddFriendModal from '../components/chat/AddFriendModal.vue'
 import CreateGroupModal from '../components/chat/CreateGroupModal.vue'
 import GroupDetailModal from '../components/chat/GroupDetailModal.vue'
 import ContactList from '../components/chat/ContactList.vue'
-import Sidebar from '../components/chat/Sidebar.vue'
 import { useChatStore } from '../stores/chatStore'
 
 const chatStore = useChatStore()
+const route = useRoute()
 
 // 模态框状态
 const isAddFriendModalOpen = ref(false)
 const isCreateGroupModalOpen = ref(false)
 
-// 侧边栏 Tab 控制
-const activeTab = ref('chat') // 'chat' | 'contacts'
-
-const handleTabChange = (tab: string) => {
-  // 路由跳转已由Sidebar处理,这里只需要更新内部状态
-  if (tab === 'chat' || tab === 'contacts') {
-    activeTab.value = tab
-  }
-}
+// 侧边栏 Tab 控制 (通过路由参数)
+const activeTab = computed(() => {
+  return route.query.tab === 'contacts' ? 'contacts' : 'chat'
+})
 
 // 动态切换列表组件
 const activeSideComponent = computed(() => {
@@ -39,13 +35,14 @@ onMounted(() => {
   <!-- 全屏容器：使用 Flex 布局，禁止溢出 -->
   <div class="flex h-full w-full overflow-hidden bg-[#F5F7FA] dark:bg-slate-900 text-slate-900 dark:text-white transition-colors duration-300 font-sans">
     
-    <!-- 1. 侧边导航栏 (固定宽度) -->
-    <Sidebar @tab-change="handleTabChange" class="shrink-0" />
-
-    <!-- 2. 列表区域 (固定宽度 320px) -->
+    <!-- 列表区域 (固定宽度 320px) -->
     <aside class="w-[320px] flex flex-col h-full bg-white dark:bg-slate-900 border-r border-slate-200/50 dark:border-slate-700/50 transition-colors duration-300 z-40 relative">
       <keep-alive>
-        <component :is="activeSideComponent" />
+        <component 
+          :is="activeSideComponent" 
+          @open-add-friend="isAddFriendModalOpen = true"
+          @open-create-group="isCreateGroupModalOpen = true"
+        />
       </keep-alive>
     </aside>
 

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import Sidebar from '../components/chat/Sidebar.vue'
 import MomentItem from '../components/moments/MomentItem.vue'
 import MomentHeader from '../components/moments/MomentHeader.vue'
 import PublishModal from '../components/moments/PublishModal.vue'
@@ -32,9 +31,7 @@ const handlePublishSuccess = () => {
 
 <template>
   <div class="flex h-full w-full overflow-hidden bg-[#F9FAFB] dark:bg-slate-900 text-slate-900 dark:text-white transition-colors duration-300 font-sans">
-    <!-- 侧边导航栏 -->
-    <Sidebar active-tab="moments" class="shrink-0" />
-
+    
     <!-- 主内容区 -->
     <div class="flex-1 h-full overflow-y-auto custom-scrollbar">
       <!-- 顶部封面 (全宽) -->

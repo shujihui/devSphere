@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 // 👇 1. 引入新的 store hook
 import { useUserStore } from '../stores/userStore'
 import DashboardView from '../views/DashboardView.vue'
+import MainLayout from '../layouts/MainLayout.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -21,23 +22,28 @@ const router = createRouter({
       name: 'interview',
       component: () => import('../views/InterviewView.vue')
     },
+    // App Main Layout Routes
     {
-      path: '/profile',
-      name: 'profile',
-      component: () => import('../views/ProfileView.vue'),
-      meta: { requiresAuth: true }
-    },
-    {
-      path: '/chat',
-      name: 'chat',
-      component: () => import('../views/ChatView.vue'),
-      meta: { requiresAuth: true } // 聊天必须登录
-    },
-    {
-      path: '/moments',
-      name: 'moments',
-      component: () => import('../views/MomentView.vue'),
-      meta: { requiresAuth: true }
+      path: '/',
+      component: MainLayout,
+      meta: { requiresAuth: true },
+      children: [
+        {
+          path: 'chat',
+          name: 'chat',
+          component: () => import('../views/ChatView.vue')
+        },
+        {
+          path: 'moments',
+          name: 'moments',
+          component: () => import('../views/MomentView.vue')
+        },
+        {
+          path: 'profile',
+          name: 'profile',
+          component: () => import('../views/ProfileView.vue')
+        }
+      ]
     }
   ]
 })

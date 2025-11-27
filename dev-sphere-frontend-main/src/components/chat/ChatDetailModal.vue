@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useChatStore } from '../../stores/chatStore'
 import { useUserStore } from '../../stores/userStore'
 import { chatService } from '../../services/chatService'
+import { formatImageUrl } from '@/utils/image'
 
 const chatStore = useChatStore()
 const userStore = useUserStore()
@@ -93,7 +94,7 @@ const handleDeleteFriend = async () => {
           <!-- 头像和名称 -->
           <div class="flex flex-col items-center gap-3 pb-6 border-b border-slate-100">
             <img 
-              :src="currentConversation?.avatar" 
+              :src="formatImageUrl(currentConversation?.avatar)" 
               class="w-20 h-20 rounded-full object-cover border-4 border-slate-50 shadow-sm"
               alt="Avatar"
             />

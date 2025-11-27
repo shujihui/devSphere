@@ -146,4 +146,15 @@ public class ChatController {
         messageService.recallMessage(messageId);
         return new Result<Void>().ok();
     }
+
+    /**
+     * 隐藏会话
+     */
+    @PutMapping("/hide")
+    @Operation(summary = "隐藏会话")
+    public Result<Void> hideConversation(@RequestParam Long roomId) {
+        Long loginUserId = SecurityUser.getUserId();
+        roomService.hideSession(roomId, loginUserId);
+        return new Result<Void>().ok();
+    }
 }

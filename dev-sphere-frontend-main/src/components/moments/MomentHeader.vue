@@ -2,6 +2,7 @@
 import { computed, ref, onMounted } from 'vue'
 import { useUserStore } from '../../stores/userStore'
 import { ossService } from '../../services/ossService'
+import { formatImageUrl } from '@/utils/image'
 
 const userStore = useUserStore()
 const user = computed(() => userStore.userInfo)
@@ -65,7 +66,7 @@ const emit = defineEmits(['publish'])
     <!-- 封面图 (高度增加到 h-80) -->
     <div class="h-80 w-full overflow-hidden relative group cursor-pointer" @click="handleCoverClick">
       <img 
-        :src="coverUrl" 
+        :src="formatImageUrl(coverUrl)" 
         class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
         alt="cover"
       />
@@ -106,7 +107,7 @@ const emit = defineEmits(['publish'])
       
       <div class="relative group cursor-pointer">
         <img 
-          :src="avatar" 
+          :src="formatImageUrl(avatar)" 
           class="w-24 h-24 rounded-xl border-4 border-white dark:border-slate-900 shadow-lg object-cover bg-white transition-transform duration-300 group-hover:scale-105"
           alt="avatar"
         />

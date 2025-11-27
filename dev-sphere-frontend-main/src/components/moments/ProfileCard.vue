@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useUserStore } from '../../stores/userStore'
+import { formatImageUrl } from '@/utils/image'
 
 const userStore = useUserStore()
 const user = computed(() => userStore.userInfo)
@@ -11,7 +12,7 @@ const avatar = computed(() => userStore.userAvatar)
   <div class="bg-white dark:bg-slate-900 rounded-xl shadow-sm p-6">
     <div class="flex flex-col items-center">
       <img 
-        :src="avatar" 
+        :src="formatImageUrl(avatar)" 
         alt="用户头像" 
         class="w-20 h-20 rounded-full object-cover border-4 border-blue-500 shadow-md"
       >

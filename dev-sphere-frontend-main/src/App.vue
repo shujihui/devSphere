@@ -8,6 +8,7 @@ import wsService from './services/WebSocketService'
 import AppHeader from './components/AppHeader.vue'
 import AuthModal from './components/AuthModal.vue'
 import CallModal from './components/call/CallModal.vue'
+import GroupCallModal from './components/call/GroupCallModal.vue'
 import config from './utils/config'
 
 import { authService } from './services/authService'
@@ -90,6 +91,7 @@ const openLogin = () => {
     
     <AuthModal ref="authModalRef" />
     <CallModal />
+    <GroupCallModal />
   </div>
 </template>
 

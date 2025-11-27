@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '../../stores/userStore'
+import { formatImageUrl } from '@/utils/image'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -36,29 +37,30 @@ const props = defineProps<{
   activeTab?: string
 }>()
 
-const currentTab = ref(props.activeTab || 'chat')
-
 const emit = defineEmits(['tab-change'])
 
 const setTab = (tab: string) => {
-  currentTab.value = tab
-  
-  // 直接处理路由跳转
-  if (tab === 'chat' || tab === 'contacts') {
+  // Navigation logic
+  if (tab === 'chat') {
     router.push('/chat')
+  } else if (tab === 'contacts') {
+    router.push('/chat?tab=contacts')
   } else if (tab === 'moments') {
     router.push('/moments')
   } else if (tab === 'settings') {
-    console.log('Open Settings')
+    router.push('/profile')
   }
   
-  // 仍然emit事件,供父组件做其他处理(如切换内部tab状态)
   emit('tab-change', tab)
 }
 
 const handleLogout = () => {
   userStore.logout()
   router.push('/login')
+}
+
+const goToProfile = () => {
+  router.push('/profile')
 }
 </script>
 
@@ -148,10 +150,10 @@ const handleLogout = () => {
       </button>
 
       <!-- 用户头像 -->
-      <div class="relative group cursor-pointer">
+      <div class="relative group cursor-pointer" @click="goToProfile">
         <div class="relative">
            <img 
-            :src="userStore.userAvatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'" 
+            :src="formatImageUrl(userStore.userAvatar) || 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'" 
             class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 object-cover border-2 border-transparent group-hover:border-blue-500 transition-all duration-300 shadow-sm"
           />
           <!-- 在线状态点 -->

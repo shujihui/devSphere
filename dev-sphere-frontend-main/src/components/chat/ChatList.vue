@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useChatStore, type Conversation } from '../../stores/chatStore'
+import { formatImageUrl } from '../../utils/image'
 
 const chatStore = useChatStore()
 
@@ -82,8 +83,32 @@ const handleDeleteChat = async () => {
   closeContextMenu()
 }
 
+const emit = defineEmits(['open-add-friend', 'open-create-group'])
+
+// --- Add Menu Logic ---
+const showAddMenu = ref(false)
+
+const toggleAddMenu = () => {
+  showAddMenu.value = !showAddMenu.value
+}
+
+const handleAddFriend = () => {
+  emit('open-add-friend')
+  showAddMenu.value = false
+}
+
+const handleCreateGroup = () => {
+  emit('open-create-group')
+  showAddMenu.value = false
+}
+
+const closeAddMenu = () => {
+  showAddMenu.value = false
+}
+
 const handleGlobalClick = () => {
   if (contextMenuVisible.value) closeContextMenu()
+  if (showAddMenu.value) closeAddMenu()
 }
 
 onMounted(() => document.addEventListener('click', handleGlobalClick))
@@ -97,9 +122,46 @@ onUnmounted(() => document.removeEventListener('click', handleGlobalClick))
     <div class="p-5 pb-2 shrink-0">
       <div class="flex items-center justify-between mb-4 px-1">
         <h2 class="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">消息</h2>
-        <button class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-xl transition-all">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        </button>
+        <div class="relative">
+          <button 
+            @click.stop="toggleAddMenu"
+            class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-xl transition-all"
+            :class="{ 'bg-blue-50 text-blue-600 dark:bg-slate-800': showAddMenu }"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+
+          <!-- Add Menu Dropdown -->
+          <Transition
+            enter-active-class="transition duration-100 ease-out"
+            enter-from-class="transform scale-95 opacity-0 translate-y-1"
+            enter-to-class="transform scale-100 opacity-100 translate-y-0"
+            leave-active-class="transition duration-75 ease-in"
+            leave-from-class="transform scale-100 opacity-100 translate-y-0"
+            leave-to-class="transform scale-95 opacity-0 translate-y-1"
+          >
+            <div 
+              v-if="showAddMenu"
+              class="absolute right-0 top-full mt-2 w-40 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 py-1.5 z-50 overflow-hidden ring-1 ring-black/5"
+              @click.stop
+            >
+              <button 
+                @click="handleAddFriend"
+                class="w-full text-left px-4 py-2.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors font-medium flex items-center gap-3"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+                添加好友
+              </button>
+              <button 
+                @click="handleCreateGroup"
+                class="w-full text-left px-4 py-2.5 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors font-medium flex items-center gap-3"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                发起群聊
+              </button>
+            </div>
+          </Transition>
+        </div>
       </div>
       
       <div class="relative group">
@@ -148,7 +210,7 @@ onUnmounted(() => document.removeEventListener('click', handleGlobalClick))
         >
            <!-- 头像 -->
            <div class="relative shrink-0">
-             <img :src="chat.avatar" class="h-[52px] w-[52px] rounded-2xl bg-slate-200 dark:bg-slate-700 object-cover shadow-sm group-hover:scale-105 transition-transform duration-300" />
+             <img :src="formatImageUrl(chat.avatar)" class="h-[52px] w-[52px] rounded-2xl bg-slate-200 dark:bg-slate-700 object-cover shadow-sm group-hover:scale-105 transition-transform duration-300" />
              
              <!-- 在线状态 -->
              <span v-if="chat.isOnline" class="absolute -bottom-0.5 -right-0.5 block h-4 w-4 rounded-full ring-2 ring-white dark:ring-slate-900 bg-emerald-500"></span>

@@ -50,6 +50,7 @@ export interface ChatMessage {
   content: string
   time: Date
   status: 'sending' | 'sent' | 'error'
+  messageType?: number // [Added] Content Type
 }
 
 // (发送用) 对应后端 ChatMessageVo
@@ -209,6 +210,7 @@ export const useChatStore = defineStore('chat', () => {
       content: content,
       time: new Date(),
       status: 'sending',
+      messageType: messageType, // [Added]
     }
 
     if (!messageMap.value[conv.id]) {
@@ -263,6 +265,89 @@ export const useChatStore = defineStore('chat', () => {
 
     // 发送也视为用户活动（重置宽限期）
     handleUserActivity()
+  }
+
+  /**
+   * 发送通话状态消息（专门用于 WebRTCService）
+   * - 查找目标会话
+   * - 本地插入消息
+   * - 发送 WS
+   */
+  async function sendCallMessage(targetId: string, content: string, messageType: number) {
+    const userInfo = userStore.userInfo
+    if (!userInfo) return
+
+    // 1. 查找会话
+    let conv = Array.from(conversationsMap.value.values()).find(
+      c => c.type === MsgType.PRIVATE && String(c.targetId) === String(targetId)
+    )
+
+    // 如果本地没有会话，尝试简单的 WS 发送（不存本地），或者忽略
+    // 为了保证一致性，建议至少发送 WS
+    if (!conv) {
+      console.warn('未找到会话，仅发送 WS 消息', targetId)
+      const chatVo = {
+        type: MsgType.PRIVATE,
+        content: content,
+        tempId: 'call_' + Date.now(),
+        messageType: messageType
+      }
+      wsService.send({
+        type: WSReqType.CHAT,
+        userId: String(targetId),
+        data: JSON.stringify(chatVo)
+      })
+      return
+    }
+
+    // 2. 本地插入
+    const tempId = 'temp_call_' + Date.now() + '_' + Math.floor(Math.random() * 1000)
+    const newMessage: ChatMessage = {
+      id: tempId,
+      tempId: tempId,
+      roomId: conv.id,
+      senderId: String(userInfo.id),
+      senderName: userStore.displayName ?? (userInfo.username || '我'),
+      senderAvatar: userStore.userAvatar ?? (userInfo.avatar || ''),
+      content: content,
+      time: new Date(),
+      status: 'sending',
+      messageType: messageType,
+    }
+
+    if (!messageMap.value[conv.id]) {
+      messageMap.value[conv.id] = []
+    }
+    messageMap.value[conv.id].push(newMessage)
+
+    // 3. 发送 WS
+    const chatVo = {
+      type: conv.type,
+      content: content,
+      tempId: tempId,
+      messageType: messageType,
+    }
+
+    try {
+      wsService.send({
+        type: WSReqType.CHAT,
+        userId: String(conv.targetId),
+        data: JSON.stringify(chatVo),
+      })
+      startAckTimer(tempId, conv.id)
+    } catch (err) {
+      console.error('WS 发送通话消息失败:', err)
+      newMessage.status = 'error'
+    }
+
+    // 4. 更新会话状态
+    conv.lastMessage = content // 这里可能显示为代码，但 ChatBox 会格式化，列表页可能需要单独处理（暂不处理列表页格式化）
+    conv.lastTime = new Date()
+    conversationsMap.value.set(conv.id, conv)
+
+    if (activeRoomId.value === conv.id) {
+      lastMessageDirection.value = 'append'
+    }
   }
 
   /**
@@ -618,6 +703,7 @@ export const useChatStore = defineStore('chat', () => {
       content: resp.message?.content ?? '',
       time: sendTime,
       status: 'sent',
+      messageType: resp.message?.type, // [Added] Assuming 'type' is content type
     }
   }
 
@@ -716,6 +802,36 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  async function inviteToGroup(roomId: number, userIds: string[]) {
+    try {
+      await chatService.inviteToGroup(roomId, userIds)
+      // Refresh members
+      const members = await chatService.getGroupMembers(roomId)
+      currentGroupMembers.value = members
+      if (currentGroupDetail.value) {
+        currentGroupDetail.value.memberCount = members.length
+      }
+    } catch (error) {
+      console.error('邀请进群失败:', error)
+      throw error
+    }
+  }
+
+  async function kickFromGroup(roomId: number, uid: string) {
+    try {
+      await chatService.kickFromGroup(roomId, uid)
+      // Refresh members
+      const members = await chatService.getGroupMembers(roomId)
+      currentGroupMembers.value = members
+      if (currentGroupDetail.value) {
+        currentGroupDetail.value.memberCount = members.length
+      }
+    } catch (error) {
+      console.error('移出群成员失败:', error)
+      throw error
+    }
+  }
+
   // 隐藏会话
   async function hideConversation(roomId: number) {
     try {
@@ -797,6 +913,7 @@ export const useChatStore = defineStore('chat', () => {
     setActiveRoom,
     loadMoreMessages,
     sendMessage,
+    sendCallMessage, // [Added]
     receiveMessage,
     ackMessage, // <-- 新增，需要 WS 层在收到 ACK 时调用
 
@@ -818,7 +935,10 @@ export const useChatStore = defineStore('chat', () => {
     contactGroups,
     isLoadingContacts,
     loadContactList,
+    deleteFriend,
     updateFriendRemark,
+    inviteToGroup,
+    kickFromGroup,
     hideConversation,
     deleteConversation,
     quitGroup,

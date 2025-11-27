@@ -2,6 +2,9 @@
 import { ref, computed } from 'vue' 
 import { useChatStore } from '../../stores/chatStore'
 import { useUserStore } from '../../stores/userStore'
+import { formatImageUrl } from '@/utils/image'
+
+import ContactPicker from '../call/ContactPicker.vue'
 
 const chatStore = useChatStore()
 const userStore = useUserStore()
@@ -9,6 +12,9 @@ const userStore = useUserStore()
 const isEditingName = ref(false)
 const newGroupName = ref('')
 const editError = ref('')
+
+const showAddMemberModal = ref(false)
+const isDeleteMode = ref(false)
 
 // 点击修改群名
 const startEdit = () => {
@@ -48,6 +54,39 @@ const handleQuitGroup = async () => {
     }
   } catch (e: any) {
     alert(e.message || '退出失败')
+  }
+}
+
+// 邀请成员
+const handleInviteMember = async (selectedUsers: any[]) => {
+  if (!chatStore.currentGroupDetail?.roomId) return
+  
+  try {
+    const userIds = selectedUsers.map(u => u.id)
+    await chatStore.inviteToGroup(chatStore.currentGroupDetail.roomId, userIds)
+    showAddMemberModal.value = false
+  } catch (e: any) {
+    alert(e.message || '邀请失败')
+  }
+}
+
+// 移除成员
+const toggleDeleteMode = () => {
+  isDeleteMode.value = !isDeleteMode.value
+}
+
+const handleKickMember = async (uid: string) => {
+  if (!chatStore.currentGroupDetail?.roomId) return
+  if (!confirm('确定要将该成员移出群聊吗？')) return
+  
+  try {
+    await chatStore.kickFromGroup(chatStore.currentGroupDetail.roomId, uid)
+    // If no members left (unlikely for owner), or just to be safe
+    if (chatStore.currentGroupMembers.length <= 1) {
+      isDeleteMode.value = false
+    }
+  } catch (e: any) {
+    alert(e.message || '移除失败')
   }
 }
 
@@ -100,7 +139,7 @@ const isOwner = computed(() => {
         <div v-else-if="chatStore.currentGroupDetail" class="flex-1 overflow-y-auto p-6 space-y-6">
           
           <div class="flex items-center gap-4">
-            <img :src="chatStore.currentGroupDetail.avatar" class="h-16 w-16 rounded-2xl bg-slate-100" />
+            <img :src="formatImageUrl(chatStore.currentGroupDetail.avatar)" class="h-16 w-16 rounded-2xl bg-slate-100" />
             <div class="flex-1 min-w-0">
               <div v-if="!isEditingName" class="flex items-center gap-2">
                 <h2 class="text-xl font-bold truncate" :title="chatStore.currentGroupDetail.name">
@@ -136,16 +175,51 @@ const isOwner = computed(() => {
           <div>
             <h4 class="text-sm font-bold text-vibrant-muted mb-3">群成员</h4>
             <div class="grid grid-cols-5 gap-4">
+              <!-- Add Member Button -->
+              <div 
+                @click="showAddMemberModal = true"
+                class="flex flex-col items-center gap-2 text-center cursor-pointer group"
+              >
+                <div class="h-12 w-12 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 group-hover:border-brand-blue group-hover:text-brand-blue transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </div>
+                <span class="text-xs text-slate-400 group-hover:text-brand-blue">邀请</span>
+              </div>
+
+              <!-- Remove Member Button (Owner Only) -->
+              <div 
+                v-if="isOwner"
+                @click="toggleDeleteMode"
+                class="flex flex-col items-center gap-2 text-center cursor-pointer group"
+              >
+                <div class="h-12 w-12 rounded-full border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 group-hover:border-functional-red group-hover:text-functional-red transition-colors" :class="{ 'bg-functional-red/10 border-functional-red text-functional-red': isDeleteMode }">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </div>
+                <span class="text-xs text-slate-400 group-hover:text-functional-red">{{ isDeleteMode ? '完成' : '移除' }}</span>
+              </div>
+
+              <!-- Members -->
               <div 
                 v-for="member in chatStore.currentGroupMembers" 
                 :key="member.uid" 
-                class="flex flex-col items-center gap-2 text-center"
+                class="flex flex-col items-center gap-2 text-center relative group"
               >
                 <div class="relative">
-                  <img :src="member.avatar" class="h-12 w-12 rounded-full bg-slate-100" />
+                  <img :src="formatImageUrl(member.avatar)" class="h-12 w-12 rounded-full bg-slate-100" />
+                  
+                  <!-- Owner Badge -->
                   <span v-if="member.isOwner === 1" class="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-functional-amber text-white ring-2 ring-white" title="群主">
                     <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L9 9H1l6.91 5.59L4.5 23l7.5-5.82L19.5 23l-3.41-8.41L23 9h-8L12 1z"/></svg>
                   </span>
+
+                  <!-- Delete Badge (Delete Mode & Not Self) -->
+                  <button 
+                    v-if="isDeleteMode && String(member.uid) !== String(userStore.userInfo?.id)"
+                    @click="handleKickMember(String(member.uid))"
+                    class="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-functional-red text-white flex items-center justify-center ring-2 ring-white hover:scale-110 transition-transform shadow-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
                 </div>
                 <span class="text-xs text-slate-500 w-full truncate">{{ member.username }}</span>
               </div>
@@ -165,6 +239,15 @@ const isOwner = computed(() => {
 
       </div>
     </Transition>
+
+    <!-- Contact Picker for Inviting Members -->
+    <ContactPicker
+      :is-open="showAddMemberModal"
+      mode="friends"
+      :exclude-ids="chatStore.currentGroupMembers.map(m => String(m.uid))"
+      @close="showAddMemberModal = false"
+      @invite="handleInviteMember"
+    />
   </Teleport>
 </template>
 

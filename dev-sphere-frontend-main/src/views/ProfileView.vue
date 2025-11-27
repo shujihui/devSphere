@@ -13,7 +13,7 @@
         <div class="relative group cursor-pointer" @click="triggerFileUpload">
           <div class="w-32 h-32 md:w-40 md:h-40 rounded-full p-1 bg-gradient-to-tr from-violet-500 to-fuchsia-500 shadow-lg relative overflow-hidden">
             <img 
-              :src="userStore.userInfo?.headUrl || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + (userStore.userInfo?.username || 'User')" 
+              :src="formatImageUrl(userStore.userInfo?.headUrl) || 'https://api.dicebear.com/7.x/avataaars/svg?seed=' + (userStore.userInfo?.username || 'User')" 
               alt="Avatar" 
               class="w-full h-full rounded-full object-cover border-4 border-white dark:border-slate-800 bg-white dark:bg-slate-800 transition-opacity group-hover:opacity-75"
             />
@@ -196,6 +196,7 @@ import { useUserStore } from '@/stores/userStore';
 import { ossService } from '@/services/ossService';
 import { userService } from '@/services/userService';
 import EditProfileModal from '@/components/profile/EditProfileModal.vue';
+import { formatImageUrl } from '@/utils/image';
 
 const userStore = useUserStore();
 const activeTab = ref('Overview');

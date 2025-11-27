@@ -8,6 +8,7 @@ export interface RemoteUserInfo {
     id: string
     name: string
     avatar: string
+    groupId?: string
 }
 
 export const useCallStore = defineStore('call', () => {
@@ -19,16 +20,29 @@ export const useCallStore = defineStore('call', () => {
     const isCameraOn = ref(true)
     const isFrontCamera = ref(true)
     const isSpeakerOn = ref(false) // For UI toggle state (though browser handles output)
+
+    // Group Call State
+    const callMode = ref<'p2p' | 'group'>('p2p')
+    const participants = ref<Map<string, RemoteUserInfo & { status: 'connecting' | 'connected' | 'audio-only' }>>(new Map())
+
     let callingTimeout: any = null
 
     // Actions
-    function startCall(userInfo: RemoteUserInfo, type: CallType = 'audio') {
+    function startCall(userInfo: RemoteUserInfo, type: CallType = 'audio', mode: 'p2p' | 'group' = 'p2p') {
         callState.value = 'calling'
         callType.value = type
+        callMode.value = mode
         remoteUserInfo.value = userInfo
         isMuted.value = false
         isCameraOn.value = type === 'video'
         isSpeakerOn.value = type === 'video' // Default to speaker for video calls
+
+        // Initialize participants
+        participants.value.clear()
+        if (mode === 'group') {
+            // In group mode, DO NOT add the group itself as a participant
+            // addParticipant(userInfo) 
+        }
 
         // 60s timeout for no answer
         if (callingTimeout) clearTimeout(callingTimeout)
@@ -42,13 +56,35 @@ export const useCallStore = defineStore('call', () => {
         }, 60000)
     }
 
-    function incomingCall(userInfo: RemoteUserInfo, type: CallType = 'audio') {
+    function incomingCall(userInfo: RemoteUserInfo, type: CallType = 'audio', mode: 'p2p' | 'group' = 'p2p') {
         callState.value = 'incoming'
         callType.value = type
+        callMode.value = mode
         remoteUserInfo.value = userInfo
         isMuted.value = false
         isCameraOn.value = type === 'video'
         isSpeakerOn.value = type === 'video'
+
+        participants.value.clear()
+        if (mode === 'group') {
+            addParticipant(userInfo, 'connected') // The caller is already "connected" in terms of presence
+        }
+    }
+
+    function addParticipant(user: RemoteUserInfo, status: 'connecting' | 'connected' | 'audio-only' = 'connecting') {
+        participants.value.set(user.id, { ...user, status })
+    }
+
+    function updateParticipantStatus(userId: string, status: 'connecting' | 'connected' | 'audio-only') {
+        const p = participants.value.get(userId)
+        if (p) {
+            p.status = status
+            participants.value.set(userId, p)
+        }
+    }
+
+    function removeParticipant(userId: string) {
+        participants.value.delete(userId)
     }
 
     function connectCall() {
@@ -73,18 +109,22 @@ export const useCallStore = defineStore('call', () => {
         if (callingTimeout) clearTimeout(callingTimeout)
         callState.value = 'idle'
         callType.value = 'audio'
+        callMode.value = 'p2p'
         remoteUserInfo.value = null
         startTime.value = null
         isMuted.value = false
         isCameraOn.value = true
         isFrontCamera.value = true
         isSpeakerOn.value = false
+        participants.value.clear()
     }
 
     return {
         callState,
         callType,
+        callMode,
         remoteUserInfo,
+        participants,
         startTime,
         isMuted,
         isCameraOn,
@@ -94,6 +134,9 @@ export const useCallStore = defineStore('call', () => {
         incomingCall,
         connectCall,
         endCall,
-        reset
+        reset,
+        addParticipant,
+        updateParticipantStatus,
+        removeParticipant
     }
 })

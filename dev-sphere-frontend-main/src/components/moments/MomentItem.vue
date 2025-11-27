@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useMomentStore, type Moment } from '../../stores/momentStore'
 import { useUserStore } from '../../stores/userStore'
+import { formatImageUrl } from '@/utils/image'
 
 const props = defineProps<{
   moment: Moment
@@ -111,7 +112,7 @@ const defaultAvatar = computed(() => {
       <div class="flex items-center mb-4">
         <div class="relative group cursor-pointer">
           <img 
-            :src="moment.user.avatar || defaultAvatar" 
+            :src="formatImageUrl(moment.user.avatar) || defaultAvatar" 
             class="w-10 h-10 rounded-full object-cover border border-slate-100 dark:border-slate-800"
             alt="avatar"
           />
@@ -141,7 +142,7 @@ const defaultAvatar = computed(() => {
         <!-- 单图模式 -->
         <div v-if="moment.imageUrls.length === 1" class="rounded-lg overflow-hidden max-h-[400px]">
           <img 
-            :src="moment.imageUrls[0]" 
+            :src="formatImageUrl(moment.imageUrls[0])" 
             class="w-full h-full object-cover hover:scale-105 transition-transform duration-500 cursor-zoom-in"
             @click="openImageViewer(0)"
           />
@@ -154,7 +155,7 @@ const defaultAvatar = computed(() => {
             class="aspect-square rounded-lg overflow-hidden relative group"
           >
             <img 
-              :src="url" 
+              :src="formatImageUrl(url)" 
               class="w-full h-full object-cover hover:scale-110 transition-transform duration-500 cursor-zoom-in"
               @click="openImageViewer(index)"
             />
@@ -211,7 +212,7 @@ const defaultAvatar = computed(() => {
     <div v-if="showCommentInput || (moment.comments && moment.comments.length > 0)" class="bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 px-6 py-4">
       <!-- 评论输入框 -->
       <div v-if="showCommentInput" class="flex items-center gap-3 mb-4">
-        <img :src="userStore.userAvatar" class="w-8 h-8 rounded-full object-cover" />
+        <img :src="formatImageUrl(userStore.userAvatar)" class="w-8 h-8 rounded-full object-cover" />
         <div class="flex-1 relative">
           <input 
             v-model="commentContent"
@@ -233,7 +234,7 @@ const defaultAvatar = computed(() => {
       <div class="space-y-4">
         <div v-for="comment in moment.comments" :key="comment.id" class="flex gap-3 group">
           <img 
-            :src="comment.avatar || `https://ui-avatars.com/api/?name=${comment.username}&background=random`" 
+            :src="formatImageUrl(comment.avatar) || `https://ui-avatars.com/api/?name=${comment.username}&background=random`" 
             class="w-8 h-8 rounded-full object-cover mt-1"
           />
           <div class="flex-1">
