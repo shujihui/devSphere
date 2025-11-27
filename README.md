@@ -90,32 +90,31 @@ DevSphere
 
 ## 五、页面预览
 多模式聊天： 支持好友私聊和群组聊天，消息实时同步。
-![输入图片说明](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247597480-a743ebd1-7045-4141-a177-701358e15e2b.png)
-![输入图片说明](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247597480-a743ebd1-7045-4141-a177-701358e15e2b.png)
+![功能预览](assets/img.png)
 
-![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247623302-695eb143-1d92-4ba0-9a44-e768d715e9cf.png)
+![功能预览](assets/img_1.png)
 
-![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247710933-f79677cc-e16c-4547-9c56-6c09d8b0a9d3.png)
+![功能预览](assets/img_2.png)
 
 实时音视频通话： 稳定流畅的 1v1 和 群聊音视频通话体验。
 
-![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247780849-082b9ce6-2b6e-4b86-9ab5-39e29b7865b1.png)
+![功能预览](assets/img_3.png)
 
-![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247846834-e0c3857a-c643-474a-a5b0-435d6fc6e506.png)
+![功能预览](assets/img_4.png)
 
 群聊音视频通话
 
-![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764248702729-16754d53-bdc9-4f1a-8b0e-1bc184e223e9.png)
+![功能预览](assets/img_5.png)
 
-![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764248712130-c529bbd0-6787-4170-9661-cd884c689628.png)
+![功能预览](assets/img_6.png)
 
 朋友圈：用户可以发布技术心得、生活动态，支持点赞、评论及代码块高亮显示。
 
-![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247527433-f65f6fe5-8c41-41aa-8901-7decb8712ced.png)
+![功能预览](assets/img_7.png)
 
 个人中心页面：展示用户信息（待完善）
 
-![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764250269924-b1bec94e-bc01-4f7c-9995-764f04311acd.png)
+![功能预览](assets/img_8.png)
 
 ### 系统架构图
 ```latex
