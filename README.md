@@ -1,135 +1,226 @@
-# devSphere-chat - 高性能实时聊天服务
+<h1 id="FKCmr">DevSphere 开发者平台</h1>
+DevSphere 是一个面向开发者的现代化协作平台，集 **即时通讯 (IM)**、**对象存储**、**API 管理**、**微服务监控** 于一体，采用 **Spring Cloud + Vue3** 的前后端分离架构，支持高并发实时通信与分布式扩展。
 
-<div align="center">
+<h2 id="kd10Q">一、项目特点</h2>
++ 基于微服务架构，独立部署、弹性扩展、容错性高
++ 支持私聊、群聊、文件消息、历史记录、在线状态等 IM 能力
++ 集成 OAuth2 + JWT，统一安全认证与接口授权
++ 支持 MinIO 对象存储，提供分片上传与权限控制
++ 支持 API 限流、文档生成、访问控制与统计分析
++ 可扩展的监控系统，支持日志收集与性能监控
 
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-green)](#)
-[![Netty](https://img.shields.io/badge/Netty-4.1.76.Final-blue)](#)
-[![MyBatis Plus](https://img.shields.io/badge/MyBatis%20Plus-3.5.7-orange)](#)
-[![Redis](https://img.shields.io/badge/Redis-Streaming-red)](#)
+<h2 id="b7f32ae3">二、技术栈</h2>
+<h3 id="543517e1">后端技术</h3>
+| 分类 | 技术 |
+| --- | --- |
+| 核心框架 | Spring Boot 3.1.2，Spring Cloud 2022.0.3 |
+| 服务注册/配置 | Nacos |
+| API 网关 | Spring Cloud Gateway |
+| 安全认证 | Spring Security，OAuth2，JWT |
+| ORM | MyBatis Plus 3.5.3.2 |
+| 消息与缓存 | RabbitMQ，Redis 6+ |
+| 数据库 | MySQL 8.0 |
+| 实时通信 | Netty 4.1.76.Final + WebSocket |
+| 对象存储 | MinIO |
+| 构建工具 | Maven 3.8+ |
 
-</div>
 
-## 🌟 项目亮点
+<h3 id="40d75c2c">前端技术</h3>
+| 应用 | 技术 |
+| --- | --- |
+| 主应用 | Vue3，Vite，TypeScript，Element Plus |
+| IM 聊天应用 | Vue3，Vite，TypeScript，Naive UI |
 
-devSphere-chat 是一个基于 Spring Boot 构建的企业级实时聊天服务，专为高并发、低延迟的即时通讯场景设计。它不仅提供了完整的私聊和群聊功能，还通过创新的技术架构确保了消息的可靠传输和系统的稳定性。
 
-### 🚀 核心优势
-- **高并发支持**：基于 Netty 的异步事件驱动模型，轻松应对万级并发连接
-- **消息可靠性**：Redis Stream 消息队列 + 死信队列机制，确保消息零丢失
-- **架构先进**：事件驱动 + 异步处理模式，提升系统整体性能
-- **扩展性强**：模块化设计，易于定制和二次开发
-
-## 💬 聊天服务详解
-
-### 📱 功能特性
-
-#### 基础聊天功能
-- **私聊 (P2P)**：用户之间一对一实时消息传递
-- **群聊 (Room)**：支持多人同时在线聊天
-- **多消息类型**：支持文本、图片、语音、视频、文件等多种消息格式
-- **离线消息**：自动存储和推送用户离线期间的消息
-- **消息状态**：已读/未读标记、消息撤回等状态管理
-
-#### 社交功能
-- **好友管理**：添加、删除、备注好友关系
-- **群组管理**：创建、解散群组，成员管理
-- **会话列表**：实时展示私聊和群聊会话列表
-- **消息通知**：系统通知、好友申请、群聊邀请等提醒
-
-### 🏗️ 技术架构
-
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   WebSocket     │    │   HTTP API      │    │   定时任务      │
-│   (Netty)       │    │   (Spring MVC)  │    │   (Scheduler)   │
-└────────┬────────┘    └────────┬────────┘    └────────┬────────┘
-         │                      │                      │
-         └──────────────────────┼──────────────────────┘
-                                │
-                     ┌─────────▼─────────┐
-                     │  业务逻辑层        │
-                     │  (Service Layer)  │
-                     └─────────┬─────────┘
-                               │
-          ┌────────────────────┼────────────────────┐
-          │                    │                    │
-┌─────────▼─────────┐ ┌────────▼────────┐ ┌─────────▼─────────┐
-│   MySQL数据库      │ │   Redis缓存      │ │   Feign远程调用    │
-│  (持久化存储)      │ │  (消息队列)      │ │  (用户服务)        │
-└───────────────────┘ └─────────────────┘ └───────────────────┘
+<h2 id="zrbby">三、模块结构概览</h2>
+```plain
+DevSphere
+├── shutu-commons                   # 公共依赖与通用工具组件
+│   ├── dependencies                # 统一第三方依赖版本
+│   ├── security                    # JWT、认证与授权配置
+│   ├── dynamic-datasource          # 动态数据源切换
+│   ├── swagger                     # 接口文档配置
+│   ├── mybatis                     # MyBatis Plus 扩展（分页、多租户等）
+│   ├── tools                       # 工具类（加密、时间、字符串、文件等）
+│   └── log                         # 日志统一处理
+├── shutu-auth                      # 认证授权服务
+│   ├── auth-server                 # Token 颁发与 OAuth2 授权
+│   └── auth-client                 # 其他服务集成认证
+├── shutu-gateway                   # API 网关
+├── shutu-admin                     # 服务监控
+│   ├── admin-server                # 数据展示、健康监控
+│   └── admin-client                # 上报指标
+├── shutu-module-message            # 消息/通知模块（异步消息）
+├── shutu-module-oss                # 文件上传下载模块（MinIO）
+├── devSphere-chat                  # 实时聊天服务（Netty + WS）
+└── dev-sphere-frontend-main        # 前端主应用
 ```
 
-### 🔧 核心组件解析
+<h2 id="x1GEk">四、功能说明</h2>
+<h3 id="9f2dc291">1. 用户与权限</h3>
++ 用户注册、登录、注销
++ 基于角色的权限控制
++ Token 刷新与无状态认证
++ 个人信息与设置管理
 
-#### 消息处理引擎
-系统采用事件驱动架构处理各类消息：
-- `GroupMessageListener`：群聊消息监听器，处理群组内消息广播
-- `MessageStreamListener`：Redis Stream 消息监听器，消费消息队列中的数据
-- `PrivateMessageEvent`：私聊消息事件模型
-- `GroupMessageEvent`：群聊消息事件模型
+<h3 id="10cd02ab">2. 即时通讯 IM</h3>
++ 私聊与群聊
++ 文本、图片、文件消息
++ 在线状态实时显示
++ 离线消息存储与未读提醒
++ 历史聊天记录分页查询
++ 1v1 与群组音视频通话能力（可扩展）
++  支持发布动态、图片及代码内容，好友可点赞评论并展示个性化技术分享。
 
-#### 消息传输保障
-为了确保消息的可靠传输，系统实现了完整的消息生命周期管理：
+<h3 id="b9218a89">3. 文件与对象存储</h3>
++ 多类型文件上传/下载
++ MinIO 分片上传与断点续传
++ 文件预览与访问权限控制
 
-1. **消息入队**：通过 Redis Stream 将消息放入队列
-2. **异步处理**：监听器异步消费队列消息并持久化到数据库
-3. **异常处理**：异常消息自动进入死信队列等待人工处理
-4. **状态同步**：实时更新消息状态和用户会话信息
+<h3 id="11ffcc54">4. API 管理</h3>
++ REST API 文档自动生成
++ 访问频率限制与统计
++ 鉴权与访问控制
 
-#### WebSocket 通信层
-基于 Netty 构建的高性能 WebSocket 服务器：
+<h3 id="81c42850">5. 系统监控</h3>
++ 服务健康检查
++ 实例性能指标展示
++ 异常日志收集与分析
++ 可视化监控面板
 
-- `NettyServer`：WebSocket 服务器启动配置
-- `WebSocketServerHandler`：WebSocket 连接处理器
-- `AuthHandler`：连接认证处理器
+<h2 id="q14cF">五、页面预览</h2>
+多模式聊天： 支持好友私聊和群组聊天，消息实时同步。
 
-### 📦 数据模型设计
+![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247597480-a743ebd1-7045-4141-a177-701358e15e2b.png)
 
-系统采用清晰的数据模型来管理聊天相关信息：
+![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247623302-695eb143-1d92-4ba0-9a44-e768d715e9cf.png)
 
-- `Message`：消息实体，存储所有聊天内容
-- `Room`：房间实体，表示聊天会话
-- `RoomFriend`：私聊房间关联
-- `RoomGroup`：群聊房间详情
-- `UserRoomRelate`：用户与房间的关系
+![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247710933-f79677cc-e16c-4547-9c56-6c09d8b0a9d3.png)
 
-### 🔄 消息流转流程
+实时音视频通话： 稳定流畅的 1v1 和 群聊音视频通话体验。
 
-```mermaid
-sequenceDiagram
-    participant C as 客户端
-    participant W as WebSocket服务
-    participant R as Redis Stream
-    participant L as 消息监听器
-    participant DB as 数据库
-    
-    C->>W: 发送消息
-    W->>R: 消息入队
-    R->>L: 异步消费
-    L->>DB: 持久化存储
-    DB-->>L: 返回结果
-    L->>W: 推送确认
-    W->>C: ACK确认
-    L->>W: 广播消息
-    W->>C: 推送消息
+![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247780849-082b9ce6-2b6e-4b86-9ab5-39e29b7865b1.png)
+
+![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247846834-e0c3857a-c643-474a-a5b0-435d6fc6e506.png)
+
+群聊音视频通话
+
+![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764248702729-16754d53-bdc9-4f1a-8b0e-1bc184e223e9.png)
+
+![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764248712130-c529bbd0-6787-4170-9661-cd884c689628.png)
+
+朋友圈：用户可以发布技术心得、生活动态，支持点赞、评论及代码块高亮显示。
+
+![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764247527433-f65f6fe5-8c41-41aa-8901-7decb8712ced.png)
+
+个人中心页面：展示用户信息（待完善）
+
+![](https://cdn.nlark.com/yuque/0/2025/png/43269348/1764250269924-b1bec94e-bc01-4f7c-9995-764f04311acd.png)
+
+<h3 id="Nf9wz">系统架构图</h3>
+```latex
+┌──────────────────────┐
+│   前端应用           │
+│  (Vue3 + ElementPlus)│
+└─────────┬────────────┘
+          │ HTTP/WebSocket
+┌─────────▼────────────┐
+│   网关服务            │
+│  (Spring Cloud Gateway)│
+└─────────┬────────────┘
+          │
+┌─────────▼────────────┐
+│   服务注册与配置中心   │
+│      (Nacos)         │
+└─────┬───────┬────────┘
+      │       │
+┌─────▼──┐ ┌──▼──────┐
+│ 认证服务 │ │ 管理服务 │
+│ (Auth) │ │ (Admin) │
+└─────┬──┘ └──┬──────┘
+      │       │
+┌─────▼───────▼──────┐
+│   业务服务模块       │
+│  - 消息服务         │
+│  - 对象存储服务      │
+└─────┬──────────────┘
+      │
+┌─────▼──────────────┐
+│   实时聊天服务       │
+│   (Netty + WebSocket)│
+└────────────────────┘
 ```
 
-## 🛠️ 部署要求
+<h2 id="vfQU6">六、部署说明</h2>
+<h3 id="b6780d84">环境要求</h3>
+| 依赖 | 版本 |
+| --- | --- |
+| JDK | 17+ |
+| MySQL | 8.0+ |
+| Redis | 6.0+ |
+| RabbitMQ | 最新稳定版 |
+| MinIO | 最新稳定版 |
+| Nacos | 2.x |
+| Node.js | 16+ |
 
-- Java 17+
-- MySQL 8.0+
-- Redis 6.0+
-- Maven 3.6+
-- Nacos Server 2.x
 
-## 🚀 快速开始
+<h3 id="c682487f">部署步骤</h3>
+1. **启动基础服务**
 
-1. 克隆项目代码
-2. 配置数据库和 Redis 连接信息
-3. 启动 Nacos 服务注册中心
-4. 运行应用启动类
-5. WebSocket 服务默认监听 9000 端口
+启动 MySQL、Redis、RabbitMQ、MinIO、Nacos。
 
-## 📄 许可证
+2. **初始化数据库**
 
-Apache License Version 2.0
+执行 `dev_sphere.sql` 数据库脚本。
+
+3. **修改配置文件**
+
+配置 `bootstrap.yml` 内数据库、Nacos、Redis 等连接信息。
+
+4. **启动后端服务（建议顺序）**
+
+```plain
+1. shutu-auth-server
+2. shutu-admin-server
+3. shutu-module-message
+4. shutu-module-oss
+5. shutu-gateway
+6. devSphere-chat
+```
+
+5. **构建前端应用**
+
+主应用：
+
+```plain
+npm install
+npm run build
+```
+
+聊天应用：
+
+```plain
+npm install
+npm run build
+```
+
+<h3 id="d2e896f1">默认访问地址</h3>
+| 服务 | 地址 |
+| --- | --- |
+| 主系统 | [http://localhost:8081](http://localhost:8081) |
+| API 文档 | [http://localhost:8081/doc.html](http://localhost:8081/doc.html) |
+| Nacos 控制台 | [http://localhost:8848/nacos](http://localhost:8848/nacos) |
+| WebSocket 聊天 | ws://localhost:9000 |
+
+
+<h2 id="ZOG3W">七、贡献指南</h2>
+欢迎对 DevSphere 项目进行贡献！在提交 Pull Request 前，请确保:
+
+1. 阅读代码规范文档
+2. 编写相应的单元测试
+3. 更新相关文档说明
+4. 遵守提交信息格式规范
+
+<h2 id="sbBg1">八、许可证</h2>
+本项目采用 Apache License 2.0 开源许可证。
+
