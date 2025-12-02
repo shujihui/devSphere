@@ -28,13 +28,13 @@ public class SwaggerConfig {
     @Bean
     public OpenAPI customOpenAPI() {
         Contact contact = new Contact();
-        contact.setName("人人开源");
+        contact.setName("shutu");
 
         return new OpenAPI().info(new Info()
-                .title("人人开源")
+                .title("shutu")
                 .description("接口文档")
                 .contact(contact)
                 .version("4.0")
-                .termsOfService("https://www.renren.io/community"));
+                .termsOfService("https://www.com.shutu/community"));
     }
 }

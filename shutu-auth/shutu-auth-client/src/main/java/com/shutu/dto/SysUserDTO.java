@@ -1,5 +1,3 @@
-
-
 package com.shutu.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
@@ -33,8 +31,10 @@ public class SysUserDTO implements Serializable {
 
     @Schema(description = "用户名", required = true)
     @NotBlank(message = "{sysuser.username.require}", groups = DefaultGroup.class)
-    @Pattern(regexp = "^[a-zA-Z][a-zA-Z0-9_]{5,19}$", message = "用户名格式不正确",groups = DefaultGroup.class)
+//    @Pattern(regexp = "^[a-zA-Z][a-zA-Z0-9_]{5,19}$", message = "用户名格式不正确",groups = DefaultGroup.class)
+    @Pattern(regexp = "^([a-zA-Z][a-zA-Z0-9_]{5,19}|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,})$", message = "用户名格式不正确",groups = DefaultGroup.class)
     private String username;
+
 
     @Schema(description = "密码")
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)

@@ -1,5 +1,7 @@
 
 package com.shutu.config;
+
+
 import com.shutu.commons.tools.config.ModuleConfig;
 import org.springframework.stereotype.Service;
 
