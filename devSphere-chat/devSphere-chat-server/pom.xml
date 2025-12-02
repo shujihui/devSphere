@@ -3,10 +3,10 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.shutu</groupId>
-    <artifactId>devSphere-chat</artifactId>
+    <artifactId>devSphere-chat-server</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>devSphere-chat</name>
-    <description>devSphere-chat</description>
+    <name>devSphere-chat-server</name>
+    <description>devSphere-chat-server</description>
 
     <parent>
         <groupId>com.shutu</groupId>
@@ -52,6 +52,12 @@
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-boot-starter</artifactId>
             <version>3.5.7</version>
+            <exclusions>
+                <exclusion>
+                    <artifactId>mybatis-spring</artifactId>
+                    <groupId>org.mybatis</groupId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -80,6 +86,12 @@
             <version>3.5.12</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis-spring</artifactId>
+            <version>3.0.4</version>
+            <scope>compile</scope>
+        </dependency>
 
     </dependencies>
 
@@ -92,20 +104,20 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.1</version>
+                <version>3.11.0</version>
                 <configuration>
-                    <source>1.8</source>
-                    <target>1.8</target>
+                    <source>17</source>
+                    <target>17</target>
                     <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>${spring-boot.version}</version>
                 <configuration>
-                    <mainClass>com.shutu.devSphere.ZhiLiaoApplication</mainClass>
-                    <skip>true</skip>
+                    <mainClass>com.shutu.devSphere.ChatApplication</mainClass>
+                    <!-- 如果这是要运行的主程序，建议把 skip 改为 false 或者直接删掉这一行 -->
+                    <skip>false</skip>
                 </configuration>
                 <executions>
                     <execution>
@@ -118,5 +130,16 @@
             </plugin>
         </plugins>
     </build>
+
+    <repositories>
+        <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestones</name>
+            <url>https://repo.spring.io/milestone</url>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
 
 </project>
