@@ -268,14 +268,20 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   /**
-   * 发送通话状态消息（专门用于 WebRTCService）
-   * - 查找目标会话
-   * - 本地插入消息
-   * - 发送 WS
-   */
-  async function sendCallMessage(targetId: string, content: string, messageType: number) {
+ * 发送通话状态消息（专门用于 WebRTCService）
+ * - 查找目标会话
+ * - 本地插入消息
+ * - 发送 WS
+ * @param targetId - 目标 ID (P2P: 用户 ID, GROUP: 群组 ID)
+ * @param content - 消息内容
+ * @param messageType - 消息类型
+ * @param mode - 通话模式 ('p2p' | 'group')
+ */
+  async function sendCallMessage(targetId: string, content: string, messageType: number, mode: 'p2p' | 'group' = 'p2p') {
     const userInfo = userStore.userInfo
     if (!userInfo) return
+
+    console.log('[sendCallMessage] 参数:', { targetId, messageType, mode })
 
     // 1. 查找会话
     let conv = Array.from(conversationsMap.value.values()).find(c => {
@@ -287,27 +293,24 @@ export const useChatStore = defineStore('chat', () => {
       }
     })
 
-    // 如果本地没有会话，尝试简单的 WS 发送（不存本地），或者忽略
-    // 为了保证一致性，建议至少发送 WS
-    if (!conv) {
-      console.warn('未找到会话，仅发送 WS 消息', targetId)
-      // We need to guess the type or pass it in. For now, let's assume if it looks like a room ID it might be group?
-      // Actually, WebRTCService knows the mode. But here we only have targetId.
-      // Let's try to infer or default to PRIVATE if unknown, but better to rely on caller passing context if possible.
-      // However, to keep signature simple, let's check if targetId matches an existing group in some other way or just default.
-      // Since we can't easily know, we might default to PRIVATE but this is risky for groups.
-      // BETTER APPROACH: The caller (WebRTCService) knows if it's a group call.
-      // But `sendCallMessage` signature is (targetId, content, messageType).
-      // Let's try to find if it's a group ID from `conversationsMap` even if not "active"? No, we just did that.
+    console.log('[sendCallMessage] 找到会话:', conv ? { id: conv.id, type: conv.type, name: conv.name } : null)
 
-      // Fallback: Send as PRIVATE by default if not found, or maybe we should just fail?
-      // Let's send as is.
+    // 如果本地没有会话，根据 mode 参数确定消息类型
+    if (!conv) {
+      console.warn('未找到会话，根据 mode 发送 WS 消息', { targetId, mode })
+
+      // ✅ 根据 mode 确定正确的消息类型
+      const msgType = mode === 'group' ? MsgType.GROUP : MsgType.PRIVATE
+
       const chatVo = {
-        type: MsgType.PRIVATE, // Potential bug if it's actually a group but not in list.
+        type: msgType, // ✅ 使用正确的类型
         content: content,
         tempId: 'call_' + Date.now(),
         messageType: messageType
       }
+
+      console.log('[sendCallMessage] 发送 WS (无会话):', { targetId, msgType, messageType })
+
       wsService.send({
         type: WSReqType.CHAT,
         userId: String(targetId),
@@ -344,10 +347,22 @@ export const useChatStore = defineStore('chat', () => {
       messageType: messageType,
     }
 
+    console.log('[sendCallMessage] 发送 WS (有会话):', {
+      roomId: conv.id,
+      type: conv.type,
+      targetId: conv.targetId,
+      messageType
+    })
+
+    // ✅ 关键修复: 对于群聊消息,userId 应该是 roomId,而不是 targetId
+    const wsUserId = conv.type === MsgType.GROUP ? String(conv.id) : String(conv.targetId)
+
+    console.log('[sendCallMessage] WS userId:', wsUserId, 'conv.type:', conv.type)
+
     try {
       wsService.send({
         type: WSReqType.CHAT,
-        userId: String(conv.targetId),
+        userId: wsUserId, // ✅ 群聊发送 roomId, 私聊发送 targetId
         data: JSON.stringify(chatVo),
       })
       startAckTimer(tempId, conv.id)
@@ -420,6 +435,61 @@ export const useChatStore = defineStore('chat', () => {
     const senderId = data.fromUser?.uid ? String(data.fromUser.uid) : ''
     const tempId = data.tempId
     const msgObj = data.message ?? {}
+
+    // ✅ 特殊处理：群聊邀请消息 (messageType = 7)
+    // 群聊邀请消息不应该创建会话,只需要在已有的群聊会话中显示
+    const isGroupCallInvite = msgObj.type === 7
+    if (isGroupCallInvite) {
+      console.log('[ChatStore] 收到群聊邀请消息', { roomId, messageType: msgObj.type, tempId })
+
+      // ✅ 先尝试匹配本地临时消息
+      if (tempId) {
+        const arr = messageMap.value[roomId]
+        if (arr) {
+          for (let i = arr.length - 1; i >= 0; i--) {
+            const m = arr[i]
+            if (m && ((m.tempId && m.tempId === tempId) || m.id === tempId)) {
+              console.log('[ChatStore] 匹配到本地临时消息,更新状态', { tempId })
+              // 更新本地消息
+              const persistMsgId = msgObj.id !== undefined && msgObj.id !== null ? String(msgObj.id) : undefined
+              if (persistMsgId) m.id = persistMsgId
+              delete m.tempId
+              m.status = 'sent'
+              m.time = msgObj.sendTime ? new Date(msgObj.sendTime) : new Date()
+              m.content = msgObj.content ?? m.content
+
+              // 更新会话
+              const conv = conversationsMap.value.get(roomId)
+              if (conv) {
+                conv.lastMessage = m.content
+                conv.lastTime = toDate(m.time)
+                conversationsMap.value.set(roomId, conv)
+              }
+
+              lastMessageDirection.value = 'append'
+              return
+            }
+          }
+        }
+      }
+
+      // 没有匹配到临时消息,创建新消息
+      console.log('[ChatStore] 未匹配到临时消息,创建新消息')
+      const newMessage = mapRespToChatMessage(data, roomId)
+      if (!messageMap.value[roomId]) messageMap.value[roomId] = []
+      messageMap.value[roomId].push(newMessage)
+
+      // 如果会话已存在,更新最后消息
+      const conv = conversationsMap.value.get(roomId)
+      if (conv) {
+        conv.lastMessage = newMessage.content
+        conv.lastTime = toDate(newMessage.time)
+        conversationsMap.value.set(roomId, conv)
+      }
+
+      lastMessageDirection.value = 'append'
+      return
+    }
 
     // normalize
     const persistMsgId = msgObj.id !== undefined && msgObj.id !== null ? String(msgObj.id) : undefined

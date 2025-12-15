@@ -28,6 +28,7 @@ export const MessageContentType = {
   FILE: 4,
   VOICE_CALL: 5,
   VIDEO_CALL: 6,
+  GROUP_CALL_INVITE: 7, // 群聊通话邀请
 } as const
 
 export type MessageContentType = typeof MessageContentType[keyof typeof MessageContentType]

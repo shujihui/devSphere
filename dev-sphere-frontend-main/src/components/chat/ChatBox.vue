@@ -143,6 +143,38 @@ const isCallMessage = (msg: ChatMessage) => {
   )
 }
 
+// 判断是否是群聊邀请消息
+const isGroupCallInvite = (msg: ChatMessage) => {
+  return msg.messageType === MessageContentType.GROUP_CALL_INVITE
+}
+
+// 解析群聊邀请消息
+const parseGroupCallInvite = (msg: ChatMessage) => {
+  try {
+    return JSON.parse(msg.content)
+  } catch {
+    return null
+  }
+}
+
+// 处理加入群聊通话
+const handleJoinGroupCall = (msg: ChatMessage) => {
+  const invite = parseGroupCallInvite(msg)
+  if (!invite) {
+    console.error('无法解析群聊邀请')
+    return
+  }
+  
+  const groupId = String(chatStore.activeConversation?.id)
+  const hostId = String(msg.senderId)
+  const callType = invite.callType
+  
+  console.log('[ChatBox] 加入群聊通话:', { groupId, hostId, callType })
+  
+  webRTCService.joinGroupCall(groupId, hostId, callType)
+}
+
+
 
 
 // ---------- 滚动/加载交互逻辑 ----------
@@ -632,6 +664,53 @@ const handleVideoCall = () => {
                   <!-- Video Icon -->
                   <svg v-if="getCallIconType(msg) === 'video'" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
                 </div>
+                
+                <!-- 群聊通话邀请卡片 -->
+                <div 
+                  v-else-if="isGroupCallInvite(msg)" 
+                  class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4 max-w-sm min-w-[280px]"
+                >
+                  <div class="flex items-start gap-3">
+                    <!-- 图标 -->
+                    <div class="flex-shrink-0 w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+                      <svg v-if="parseGroupCallInvite(msg)?.callType === 'video'" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                      </svg>
+                      <svg v-else xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                      </svg>
+                    </div>
+                    
+                    <!-- 内容 -->
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="font-semibold text-gray-900 dark:text-white">
+                          {{ msg.senderName }}
+                        </span>
+                        <span class="text-xs text-gray-500">
+                          邀请你加入{{ parseGroupCallInvite(msg)?.callType === 'video' ? '视频' : '语音' }}通话
+                        </span>
+                      </div>
+                      
+                      <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                        点击下方按钮加入通话
+                      </p>
+                      
+                      <!-- 加入按钮 -->
+                      <button
+                        @click="handleJoinGroupCall(msg)"
+                        class="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                        </svg>
+                        加入通话
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
                 <!-- Text Message -->
                 <div v-else>
                   {{ msg.content }}

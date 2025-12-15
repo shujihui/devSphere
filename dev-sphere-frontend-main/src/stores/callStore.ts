@@ -11,6 +11,17 @@ export interface RemoteUserInfo {
     groupId?: string
 }
 
+export interface GroupCallInvite {
+    groupId: string
+    groupName: string
+    inviterId: string
+    inviterName: string
+    inviterAvatar: string
+    callType: CallType
+    startTime: Date
+    messageId?: string
+}
+
 export const useCallStore = defineStore('call', () => {
     const callState = ref<CallState>('idle')
     const callType = ref<CallType>('audio')
@@ -24,6 +35,14 @@ export const useCallStore = defineStore('call', () => {
     // Group Call State
     const callMode = ref<'p2p' | 'group'>('p2p')
     const participants = ref<Map<string, RemoteUserInfo & { status: 'connecting' | 'connected' | 'audio-only' }>>(new Map())
+
+    // Group Call Invite State
+    const groupCallInvite = ref<GroupCallInvite | null>(null)
+    const activeGroupCall = ref<{
+        groupId: string
+        hostId: string
+        callType: CallType
+    } | null>(null)
 
     let callingTimeout: any = null
 
@@ -97,12 +116,13 @@ export const useCallStore = defineStore('call', () => {
         if (callingTimeout) clearTimeout(callingTimeout)
         callState.value = 'ended'
         startTime.value = null
-        // Don't nullify remoteUserInfo immediately so we can show "Ended" screen with avatar
+
+        // ✅ 优化: 0.5秒延迟,给用户简短的视觉反馈
         setTimeout(() => {
             if (callState.value === 'ended') {
                 reset()
             }
-        }, 2000)
+        }, 500)
     }
 
     function reset() {
@@ -117,6 +137,31 @@ export const useCallStore = defineStore('call', () => {
         isFrontCamera.value = true
         isSpeakerOn.value = false
         participants.value.clear()
+        groupCallInvite.value = null
+        activeGroupCall.value = null
+    }
+
+    // Group Call Invite Methods
+    function receiveGroupCallInvite(invite: GroupCallInvite) {
+        groupCallInvite.value = invite
+        console.log('[CallStore] 收到群聊邀请:', invite)
+    }
+
+    function clearGroupCallInvite() {
+        groupCallInvite.value = null
+    }
+
+    function joinGroupCall(groupId: string, hostId: string, type: CallType) {
+        activeGroupCall.value = { groupId, hostId, callType: type }
+        callState.value = 'calling'
+        callMode.value = 'group'
+        callType.value = type
+    }
+
+    function endGroupCall() {
+        activeGroupCall.value = null
+        groupCallInvite.value = null
+        endCall()
     }
 
     return {
@@ -130,6 +175,8 @@ export const useCallStore = defineStore('call', () => {
         isCameraOn,
         isFrontCamera,
         isSpeakerOn,
+        groupCallInvite,
+        activeGroupCall,
         startCall,
         incomingCall,
         connectCall,
@@ -137,6 +184,10 @@ export const useCallStore = defineStore('call', () => {
         reset,
         addParticipant,
         updateParticipantStatus,
-        removeParticipant
+        removeParticipant,
+        receiveGroupCallInvite,
+        clearGroupCallInvite,
+        joinGroupCall,
+        endGroupCall
     }
 })

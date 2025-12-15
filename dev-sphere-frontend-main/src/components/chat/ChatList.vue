@@ -44,6 +44,20 @@ const formatMessage = (content: string) => {
   if (!content) return ''
   if (isImageUrl(content)) return '[图片]'
   if (isFileUrl(content)) return '[文件]'
+  
+  // ✅ 处理群聊邀请消息
+  if (content.startsWith('{') && content.includes('GROUP_CALL_INVITE')) {
+    try {
+      const invite = JSON.parse(content)
+      if (invite.type === 'GROUP_CALL_INVITE') {
+        const callTypeText = invite.callType === 'video' ? '视频' : '语音'
+        return `[${callTypeText}通话邀请]`
+      }
+    } catch (e) {
+      // JSON 解析失败,返回原内容
+    }
+  }
+  
   return content
 }
 

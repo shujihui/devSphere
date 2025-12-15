@@ -1,5 +1,5 @@
 import request from '../utils/request'
-import type { UserInfo } from '../stores/userStore' // 假设 UserInfo 导入路径
+
 
 // === 1. DTO/VO 类型定义 (对应后端) ===
 

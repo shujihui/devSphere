@@ -179,8 +179,8 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import Avatar from './components/Avatar.vue';
-import { startInterview, submitAnswer, completeInterview, type Question } from '@/api/interview';
+import Avatar from '../../components/interview/Avatar.vue';
+import { startInterview, submitAnswer, completeInterview, type Question } from '@/api/interview.js';
 
 const route = useRoute();
 const router = useRouter();

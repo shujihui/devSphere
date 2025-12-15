@@ -16,10 +16,9 @@ service.interceptors.request.use(
     const userStore = useUserStore()
     if (userStore.token) {
       // 如果有 token，把它放到 header 中
-      // 注意：根据你的后端 LoginController，它可能是从参数取的，也可能是从 header 取的
-      // 通常标准做法是放在 Authorization 头中
+      // 放在 Authorization 头中
       config.headers['Authorization'] = userStore.token
-      // 如果你的后端是自定义 header，比如 'access_token'，请在这里修改
+      // 如果后端是自定义 header，比如 'access_token'，在这里修改
       config.headers['access_token'] = userStore.token
     }
     return config
@@ -38,7 +37,6 @@ service.interceptors.response.use(
       // 这里可以统一弹出错误提示，比如使用 ElementPlus 的 ElMessage
       console.error('[API Error]', res.msg || 'Error')
 
-      // 如果是 401 未登录错误，可以自动登出
       // 如果是 401 未登录错误，可以自动登出
       if (res.code === 401) {
         const userStore = useUserStore()

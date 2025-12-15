@@ -9,7 +9,6 @@ import com.shutu.commons.tools.redis.RedisKeys;
 import com.shutu.commons.tools.redis.RedisUtils;
 import com.shutu.commons.tools.utils.Result;
 import com.shutu.commons.tools.validator.AssertUtils;
-import com.shutu.model.LoginRequest;
 import com.shutu.model.dto.LoginDTO;
 import com.shutu.model.dto.UserTokenDTO;
 import com.shutu.service.CaptchaService;
@@ -145,13 +144,5 @@ public class LoginController {
         redisUtils.set(key, captcha, 60 * 5L);
     }
 
-
-    @ResponseBody
-    @PostMapping("/login")
-    @Operation(summary = "用户登录")
-    public Result<UserTokenDTO> login(@RequestBody LoginRequest loginRequest) {
-        UserTokenDTO token = sysUserService.login(loginRequest);
-
-        return new Result<UserTokenDTO>().ok(token);
-    }
 }
+

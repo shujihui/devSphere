@@ -93,6 +93,7 @@ public class WebSocketServerHandler extends SimpleChannelInboundHandler<TextWebS
                 getService().handleRtcSignal(channelHandlerContext.channel(), wsBaseRequest);
                 break;
             case HEARTBEAT:
+                getService().heartbeat(channelHandlerContext.channel());
                 break;
             default:
                 break;

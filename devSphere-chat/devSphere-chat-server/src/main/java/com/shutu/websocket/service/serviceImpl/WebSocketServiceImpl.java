@@ -4,8 +4,10 @@ import cn.hutool.core.collection.CollUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
+import com.shutu.config.NodeConfig;
 import com.shutu.config.RedisStreamConfig;
 import com.shutu.config.ThreadPoolConfig;
+import com.shutu.model.dto.chat.RouteMessageDTO;
 import com.shutu.model.dto.ws.GroupMessageDTO;
 import com.shutu.model.entity.UserRoomRelate;
 import com.shutu.model.enums.chat.RoomTypeEnum;
@@ -16,6 +18,7 @@ import com.shutu.model.vo.ws.response.ChatMessageResp;
 import com.shutu.model.vo.ws.response.WSBaseResp;
 import com.shutu.model.vo.ws.response.WSErrorResp;
 import com.shutu.model.vo.ws.response.WSMessageAck;
+import com.shutu.service.UserLocationService;
 import com.shutu.service.UserRoomRelateService;
 import com.shutu.websocket.service.WebSocketService;
 import com.shutu.websocket.adapter.WSAdapter;
@@ -42,8 +45,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 @RequiredArgsConstructor
 public class WebSocketServiceImpl implements WebSocketService {
 
-    // private final ApplicationEventPublisher applicationEventPublisher;
     private final StringRedisTemplate redisTemplate;
+    private final UserLocationService userLocationService;
     @Qualifier(ThreadPoolConfig.WS_EXECUTOR)
     private final ThreadPoolTaskExecutor threadPoolTaskExecutor;
     public static final AttributeKey<Long> USER_ID_KEY = AttributeKey.valueOf("userId");
@@ -60,17 +63,18 @@ public class WebSocketServiceImpl implements WebSocketService {
      */
     private static final ConcurrentHashMap<Long, CopyOnWriteArrayList<Channel>> ONLINE_UID_MAP = new ConcurrentHashMap<>();
 
-    @Override
     public void connect(Channel channel) {
         Long userId = channel.attr(USER_ID_KEY).get();
         // 1. 维护 Channel -> UserId 映射
         ONLINE_WS_MAP.put(channel, userId);
         // 2. 维护 UserId -> Channel[] 映射
         ONLINE_UID_MAP.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>()).add(channel);
+        // 3. 注册用户位置到 Redis (User -> NodeID)
+        userLocationService.register(userId);
+
         log.info("用户上线: {}, 当前在线人数: {}", userId, ONLINE_UID_MAP.size());
     }
 
-    @Override
     public void removed(Channel channel) {
         Long userId = ONLINE_WS_MAP.get(channel);
         if (userId != null) {
@@ -83,6 +87,8 @@ public class WebSocketServiceImpl implements WebSocketService {
                 // 如果该用户没有其他连接了，从大 Map 中移除
                 if (channels.isEmpty()) {
                     ONLINE_UID_MAP.remove(userId);
+                    // 3. 从 Redis 移除用户位置
+                    userLocationService.remove(userId);
                 }
             }
             log.info("用户下线: {}", userId);
@@ -111,71 +117,54 @@ public class WebSocketServiceImpl implements WebSocketService {
     }
 
     /**
-     * 给某个用户发送信息
-     * 
-     * @param wsBaseResp
-     * @param uid
+     * 给某个用户发送信息 (核心路由逻辑)
      */
     @Override
     public void sendToUid(WSBaseResp<?> wsBaseResp, Long uid) {
+        // 1. 优先检查本地是否在线
+        if (ONLINE_UID_MAP.containsKey(uid)) {
+            sendToLocalUid(wsBaseResp, uid);
+            return;
+        }
+
+        // 2. 本地不在线，查询 Redis 路由信息
+        String targetNodeId = userLocationService.getNode(uid);
+        if (targetNodeId != null) {
+            if (userLocationService.isLocal(targetNodeId)) {
+                // 极端情况：Redis 说是本机，但刚才 Map 没查到 -> 说明刚下线或脏数据，忽略
+                return;
+            }
+
+            // 3. 目标在远程节点，进行 Pub/Sub 广播
+            // 封装路由消息
+            RouteMessageDTO routeMsg = RouteMessageDTO.builder()
+                    .targetUid(uid)
+                    .messageJson(JSONUtil.toJsonStr(wsBaseResp))
+                    .build();
+
+            // 发送到目标节点的专属 Topic
+            String topic = NodeConfig.TOPIC_NODE_ROUTE_PREFIX + targetNodeId;
+            redisTemplate.convertAndSend(topic, JSONUtil.toJsonStr(routeMsg));
+            log.debug("消息路由转发: uid={}, targetNode={}", uid, targetNodeId);
+        } else {
+            // 用户彻底离线，离线消息已落库，无需处理
+            log.debug("用户离线，无需推送: uid={}", uid);
+        }
+    }
+
+    /**
+     * 仅推送到本机用户
+     */
+    @Override
+    public void sendToLocalUid(WSBaseResp<?> wsBaseResp, Long uid) {
         CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(uid);
         if (CollUtil.isEmpty(channels)) {
-            log.info("用户：{}不在线", uid);
             return;
         }
         // 推送给该用户的所有在线设备
         channels.forEach(channel -> threadPoolTaskExecutor.execute(() -> sendMsg(channel, wsBaseResp)));
     }
 
-    //
-    // /**
-    // * 发送聊天信息
-    // * @param channel
-    // * @param req
-    // */
-    // @Override
-    // public void sendMessage(Channel channel, WSBaseReq req) {
-    // String msg = req.getData();
-    // ChatMessageVo chatMessage = JSONUtil.toBean(msg, ChatMessageVo.class);
-    // RoomTypeEnum messageTypeEnum = RoomTypeEnum.of(chatMessage.getType());
-    //
-    // switch (messageTypeEnum) {
-    // case PRIVATE:
-    // // 私聊
-    // // 1 创建一个私聊事件，持久化信息到数据库
-    // PrivateMessageDTO privateMessageDTO = new PrivateMessageDTO();
-    // privateMessageDTO.setFromUserId(channel.attr(USER_ID_KEY).get());
-    // privateMessageDTO.setToUserId(req.getUserId());
-    // privateMessageDTO.setContent(chatMessage.getContent());
-    // applicationEventPublisher.publishEvent(new
-    // PrivateMessageEvent(this,privateMessageDTO));
-    // // 2 判断该用户是否在线，在线则直接推送信息
-    // if (ONLINE_UID_MAP.containsKey(req.getUserId())){
-    // // 用户在线，向多端发送实时信息
-    // WSBaseResp<ChatMessageResp> wsBaseResp =
-    // wsAdapter.buildPrivateMessageResp(privateMessageDTO);
-    // CopyOnWriteArrayList<Channel> channels = ONLINE_UID_MAP.get(req.getUserId());
-    // threadPoolTaskExecutor.execute(() -> {
-    // for (Channel ch : channels) {
-    // sendMsg(ch,wsBaseResp);
-    // }
-    // });
-    // }
-    // break;
-    // case GROUP:
-    // // 群聊
-    // // 1 创建一个群聊事件，持久化信息到数据库
-    // GroupMessageDTO groupMessageDTO = new GroupMessageDTO();
-    // groupMessageDTO.setFromUserId(channel.attr(USER_ID_KEY).get());
-    // groupMessageDTO.setToRoomId(req.getUserId());
-    // groupMessageDTO.setContent(chatMessage.getContent());
-    // applicationEventPublisher.publishEvent(new
-    // GroupMessageEvent(this,groupMessageDTO));
-    // // 2 群聊，向所有群成员发送实时信息
-    // sendGroupMessage(groupMessageDTO);
-    // break;
-    // }
-    // }
 
     @Override
     public void sendMessage(Channel channel, WSBaseReq req) {
@@ -212,14 +201,14 @@ public class WebSocketServiceImpl implements WebSocketService {
         }
 
         try {
-            // 2.写入 Redis Stream (顺序写，极快)
+            // 2.写入 Redis Stream 顺序写，极快
             RecordId recordId = redisTemplate.opsForStream().add(
                     RedisStreamConfig.IM_STREAM_KEY,
                     streamMessage);
             log.info("消息写入 Redis Stream 成功, StreamId: {}, TempId: {}", recordId, tempId);
 
-            // 3.立即返回 ACK给发送者，这里的ACK只是告诉前端后端已经拿到数据，不需要重试发送消息
-            // 注意：此时数据库还没落库，但我们已通过 Redis 保证了可靠性
+            // 3.返回 ACK给发送者，这里的ACK只是告诉前端后端已经拿到数据，不需要重试发送消息
+            // 此时数据库还没落库，但我们已通过 Redis 保证了可靠性
             WSMessageAck ackData = new WSMessageAck(tempId, serverMsgId, serverTs);
             sendAck(channel, ackData);
         } catch (Exception e) {
@@ -242,7 +231,6 @@ public class WebSocketServiceImpl implements WebSocketService {
         // 发送给目标用户
         sendToUid(resp, targetUid);
     }
-
 
     /**
      * 发送快速 ACK (只确认服务器已接收)
@@ -285,6 +273,15 @@ public class WebSocketServiceImpl implements WebSocketService {
      * @param tempId  前端生成的临时ID
      * @param msg     错误描述
      */
+    /**
+     * 发送错误通知
+     * 如果写入 Redis 失败，通知前端将消息状态置为失败
+     *
+     * @param channel Netty Channel
+     * @param tempId  前端生成的临时ID
+     * @param msg     错误描述
+     */
+    @SuppressWarnings("unused")
     private void sendError(Channel channel, String tempId, String msg) {
         log.warn("向客户端发送错误通知: tempId={}, msg={}", tempId, msg);
 
@@ -323,5 +320,19 @@ public class WebSocketServiceImpl implements WebSocketService {
      */
     private boolean offline(Channel channel, Optional<Long> uidOptional) {
         return true;
+    }
+
+    /**
+     * 心跳检测
+     *
+     * @param channel
+     */
+    @Override
+    public void heartbeat(Channel channel) {
+        Long userId = channel.attr(USER_ID_KEY).get();
+        if (userId != null) {
+            log.debug("收到用户的心跳包: {}", userId);
+            userLocationService.register(userId);
+        }
     }
 }

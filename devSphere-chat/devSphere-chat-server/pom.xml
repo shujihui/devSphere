@@ -9,8 +9,9 @@
 
     <parent>
         <groupId>com.shutu</groupId>
-        <artifactId>shutu</artifactId>
+        <artifactId>devSphere-chat</artifactId>
         <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <properties>

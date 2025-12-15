@@ -1,10 +1,9 @@
-// src/utils/config.ts
 
-// 你的后端网关地址 (用于 HTTP 和 SSE)
+// 后端网关地址 (用于 HTTP 和 SSE)
 // 使用相对路径，通过 Vite 代理转发，解决 HTTPS 混合内容问题
 const API_BASE_URL = '/api'
 
-// 你的 Netty 服务器地址 (用于 WebSocket)
+// Netty 服务器地址 (用于 WebSocket)
 // 使用相对路径，通过 Vite 代理转发
 const WS_BASE_URL = '/ws-api'
 

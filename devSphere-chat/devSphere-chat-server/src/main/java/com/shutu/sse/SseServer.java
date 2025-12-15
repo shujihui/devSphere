@@ -12,7 +12,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -26,12 +25,7 @@ public class SseServer {
     }
 
     /**
-     * 当前连接总数
-     */
-    private static final AtomicInteger CURRENT_CONNECT_TOTAL = new AtomicInteger(0);
-
-    /**
-     * [FIXED] userId的 SseEmitter对象映射集
+     * userId的 SseEmitter对象映射集
      */
     private static final Map<String, SseEmitter> SSE_EMITTER_MAP = new ConcurrentHashMap<>();
 
@@ -61,8 +55,7 @@ public class SseServer {
         SSE_EMITTER_MAP.put(userId, sseEmitter);
 
         //记录一下连接总数。数量+1
-        int count = CURRENT_CONNECT_TOTAL.incrementAndGet();
-        log.info("创建SSE连接成功 ==> 当前连接总数={}， userId={}", count, userId);
+        log.info("创建SSE连接成功 ==> 当前连接总数={}， userId={}", SSE_EMITTER_MAP.size(), userId);
         return sseEmitter;
     }
 
@@ -86,7 +79,7 @@ public class SseServer {
             }
         } else {
             log.warn("SSE 发送消息失败，连接不存在或者超时， userId={}", userId);
-            // throw new CommonException("连接不存在或者超时， userId=" + userId, ErrorCode.INTERNAL_SERVER_ERROR);
+            throw new CommonException("连接不存在或者超时， userId=" + userId, ErrorCode.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -149,19 +142,17 @@ public class SseServer {
     }
 
     /**
-     * [FIXED] 移除 UserId
+     * 移除 UserId
      *
      * @param userId 用户 ID
      */
     public static void removeUserId(String userId) {
         SSE_EMITTER_MAP.remove(userId);
-        //数量-1
-        CURRENT_CONNECT_TOTAL.getAndDecrement();
         log.info("SSE remove userId={}", userId);
     }
 
     /**
-     * [FIXED] 获取所有的 UserId 集合
+     * 获取所有的 UserId 集合
      *
      * @return {@link List}<{@link String}>
      */
@@ -169,14 +160,6 @@ public class SseServer {
         return new ArrayList<>(SSE_EMITTER_MAP.keySet());
     }
 
-    /**
-     * 获取当前连接总数
-     *
-     * @return int
-     */
-    public static int getConnectTotal() {
-        return CURRENT_CONNECT_TOTAL.intValue();
-    }
 
     /**
      * 完成回拨

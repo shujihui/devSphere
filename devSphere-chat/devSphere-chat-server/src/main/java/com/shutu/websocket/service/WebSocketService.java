@@ -37,7 +37,16 @@ public interface WebSocketService {
      */
     void sendToAllOnline(WSBaseResp<?> wsBaseResp);
 
+    /**
+     * 推送消息给指定用户 (自动路由)
+     */
     void sendToUid(WSBaseResp<?> wsBaseResp, Long uid);
+
+    /**
+     * 推送消息给本机用户 (仅限本机)
+     * 用于 RouteMessageListener 回调
+     */
+    void sendToLocalUid(WSBaseResp<?> wsBaseResp, Long uid);
 
     void sendMessage(Channel channel, WSBaseReq req);
 
@@ -49,5 +58,10 @@ public interface WebSocketService {
      */
     void handleRtcSignal(Channel channel, WSBaseReq req);
 
-
+    /**
+     * 心跳检测
+     * 
+     * @param channel
+     */
+    void heartbeat(Channel channel);
 }

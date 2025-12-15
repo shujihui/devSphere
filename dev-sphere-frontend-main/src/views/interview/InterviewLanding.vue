@@ -116,7 +116,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { uploadFile, createInterview } from '@/api/interview';
+import { uploadFile, createInterview } from '@/api/interview.js';
 
 const router = useRouter();
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -127,12 +127,12 @@ const isStarting = ref(false);
 const selectedDomain = ref('');
 
 const domains = [
-  { id: 'Java', name: 'Java 后端', icon: '☕' },
-  { id: 'Frontend', name: '前端开发', icon: '🎨' },
-  { id: 'SystemDesign', name: '系统设计', icon: '🏗️' },
-  { id: 'DevOps', name: '运维/云原生', icon: '☁️' },
-  { id: 'Go', name: 'Go 语言', icon: '🐹' },
-  { id: 'Python', name: 'Python / AI', icon: '🐍' },
+  { id: 'Java', name: 'Java 后端' },
+  { id: 'Frontend', name: '前端开发' },
+  { id: 'SystemDesign', name: '系统设计' },
+  { id: 'DevOps', name: '运维/云原生' },
+  { id: 'Go', name: 'Go 语言'},
+  { id: 'Python', name: 'Python / AI' },
 ];
 
 const triggerFileInput = () => {

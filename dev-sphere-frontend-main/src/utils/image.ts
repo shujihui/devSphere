@@ -1,4 +1,3 @@
-// src/utils/image.ts
 
 /**
  * Formats image URLs to handle Mixed Content issues by using a local proxy for insecure origins.

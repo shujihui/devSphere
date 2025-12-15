@@ -1,9 +1,10 @@
 import { useCallStore, type CallType } from '../stores/callStore'
 import { useChatStore } from '../stores/chatStore'
+import { useUserStore } from '../stores/userStore'
 import wsService, { WSReqType } from './WebSocketService'
 import { shallowRef } from 'vue'
 
-// Configuration for STUN servers
+// STUN 服务器配置
 const rtcConfig = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
@@ -13,22 +14,22 @@ const rtcConfig = {
 }
 
 class WebRTCService {
-    // Multi-peer support: Map<targetUserId, RTCPeerConnection>
+    // 多对等连接支持: Map<用户ID, RTCPeerConnection>
     private peerConnections: Map<string, RTCPeerConnection> = new Map()
 
-    // Local stream is shared across all connections
+    // 本地媒体流(所有连接共享)
     private localMediaStream: MediaStream | null = null
     public localStream = shallowRef<MediaStream | null>(null)
 
-    // Remote streams: Map<targetUserId, MediaStream>
+    // 远程媒体流: Map<用户ID, MediaStream>
     public remoteStreams = shallowRef<Map<string, MediaStream>>(new Map())
 
-    // Legacy support for single P2P UI (points to the first remote stream)
+    // 单个远程流(兼容 P2P UI)
     public remoteStream = shallowRef<MediaStream | null>(null)
 
-    private targetId: string = '' // Primary target (for P2P or Host)
+    private targetId: string = ''
 
-    // Queue for candidates and pending offers: Map<targetUserId, ...>
+    // 待处理的 offer 和 ICE 候选队列
     private pendingOffers: Map<string, RTCSessionDescriptionInit> = new Map()
     private candidateQueues: Map<string, RTCIceCandidateInit[]> = new Map()
 
@@ -36,7 +37,7 @@ class WebRTCService {
         wsService.registerRtcHandler(this.handleSignal.bind(this))
     }
 
-    // Initialize call (Caller)
+    // 发起通话
     async startCall(targetId: string, targetUserInfo: any, type: CallType = 'audio', mode: 'p2p' | 'group' = 'p2p') {
         const callStore = useCallStore()
         const chatStore = useChatStore()
@@ -55,20 +56,16 @@ class WebRTCService {
         this.targetId = targetId
         callStore.startCall(targetUserInfo, type, mode)
 
-        // Get local media first
-        await this.initLocalMedia()
-
-        // Send Call Message to Chat
-        const messageType = type === 'video' ? 6 : 5
-        const content = `发起${type === 'video' ? '视频' : '语音'}通话`
-        // Note: sendCallMessage is async but we don't need to await it to block the call start
-        chatStore.sendCallMessage(targetId, content, messageType)
-
         if (mode === 'p2p') {
-            // Create PC for the target
+            // P2P 模式
+            await this.initLocalMedia()
+
+            const messageType = type === 'video' ? 6 : 5
+            const content = `发起${type === 'video' ? '视频' : '语音'}通话`
+            chatStore.sendCallMessage(targetId, content, messageType, 'p2p')
+
             await this.createPeerConnection(targetId)
 
-            // Create & Send Offer
             const pc = this.peerConnections.get(targetId)
             if (pc) {
                 const offer = await pc.createOffer()
@@ -76,25 +73,42 @@ class WebRTCService {
                 this.sendSignal('offer', offer, targetId)
             }
         } else {
-            // Group mode: We are the first one, so we are "connected"
+            // 群聊模式
+            console.log('[WebRTC] 发送群聊通话邀请')
+
+            const content = JSON.stringify({
+                type: 'GROUP_CALL_INVITE',
+                callType: type,
+                groupId: targetId,
+                groupName: targetUserInfo.name
+            })
+
+            chatStore.sendCallMessage(targetId, content, 7, 'group')
+
+            await this.initLocalMedia()
             callStore.connectCall()
+
+            const userStore = useUserStore()
+            callStore.activeGroupCall = {
+                groupId: targetId,
+                hostId: String(userStore.userInfo?.id),
+                callType: type
+            }
         }
     }
 
-    // Invite users to existing call (Group Mode)
+    // 邀请用户加入通话(群聊模式)
     async inviteUsers(users: any[]) {
         const callStore = useCallStore()
         if (callStore.callMode !== 'group') return
 
         for (const user of users) {
-            if (this.peerConnections.has(user.id)) continue; // Already connected
+            if (this.peerConnections.has(user.id)) continue
 
             callStore.addParticipant(user)
 
-            // Create PC
             await this.createPeerConnection(user.id)
 
-            // Create & Send Offer
             const pc = this.peerConnections.get(user.id)
             if (pc) {
                 const offer = await pc.createOffer()
@@ -104,12 +118,66 @@ class WebRTCService {
         }
     }
 
-    // Handle incoming call (Callee)
+    // 加入群聊通话
+    async joinGroupCall(groupId: string, hostId: string, callType: CallType) {
+        const callStore = useCallStore()
+
+        if (callStore.callState !== 'idle') {
+            console.warn('[WebRTC] 已在通话中,无法加入')
+            return
+        }
+
+        console.log('[WebRTC] 加入群聊通话:', { groupId, hostId, callType })
+
+        this.targetId = groupId
+        callStore.joinGroupCall(groupId, hostId, callType)
+
+        await this.initLocalMedia()
+        await this.createPeerConnection(hostId)
+
+        const pc = this.peerConnections.get(hostId)
+        if (pc) {
+            const offer = await pc.createOffer()
+            await pc.setLocalDescription(offer)
+            this.sendGroupJoinSignal('offer', offer, hostId, groupId)
+        }
+
+        callStore.connectCall()
+    }
+
+    // 发送加入群聊信令
+    private sendGroupJoinSignal(type: string, payload: any, targetId: string, groupId: string) {
+        const callStore = useCallStore()
+        const userStr = localStorage.getItem('userInfo')
+        let rawUserInfo: any = {}
+        try { rawUserInfo = JSON.parse(userStr || '{}') } catch (e) { }
+
+        const senderUserInfo = {
+            id: rawUserInfo.id || rawUserInfo.uid,
+            name: rawUserInfo.realName || rawUserInfo.username || 'Unknown',
+            avatar: rawUserInfo.headUrl || rawUserInfo.avatar || 'default',
+            callType: callStore.callType,
+            callMode: 'group',
+            groupId: groupId,
+            action: 'JOIN_GROUP_CALL'
+        }
+
+        wsService.send({
+            type: WSReqType.RTC_SIGNAL,
+            userId: targetId,
+            data: JSON.stringify({
+                type,
+                payload,
+                senderId: senderUserInfo.id,
+                senderUserInfo
+            })
+        })
+    }
+
+    // 处理来电
     async handleIncomingCall(senderId: string, senderUserInfo: any, offer: RTCSessionDescriptionInit, mode: 'p2p' | 'group' = 'p2p') {
         const callStore = useCallStore()
 
-        // If already in a call, reject (busy) - UNLESS it's a group call invite for the SAME group?
-        // For now, simple busy logic.
         if (callStore.callState !== 'idle') {
             this.sendSignal('busy', null, senderId)
             return
@@ -118,24 +186,15 @@ class WebRTCService {
         this.targetId = senderUserInfo.groupId || senderId
         const type: CallType = senderUserInfo.callType || 'audio'
 
-        // For group call, we want to store the group info as remoteUserInfo if possible
-        // But callStore.incomingCall expects sender info. 
-        // We might need to adjust callStore or just accept that remoteUserInfo is the sender for now.
-        // However, for ContactPicker to work, we need groupId.
-        // Let's ensure callStore.remoteUserInfo has the ID we need.
-
         callStore.incomingCall(senderUserInfo, type, mode)
-
-        // Store offer
         this.pendingOffers.set(senderId, offer)
     }
 
-    // Accept Call (P2P or Group Join)
+    // 接听通话
     async acceptCall() {
         const callStore = useCallStore()
-        let targetId = this.targetId // The caller
+        let targetId = this.targetId
 
-        // In group mode, targetId is groupId, but offer is from a user (inviter)
         if (callStore.callMode === 'group') {
             const inviterId = this.pendingOffers.keys().next().value
             if (inviterId) {
@@ -150,8 +209,6 @@ class WebRTCService {
         }
 
         await this.initLocalMedia()
-
-        // Init PC for caller
         await this.createPeerConnection(targetId)
         const pc = this.peerConnections.get(targetId)
 
@@ -159,7 +216,7 @@ class WebRTCService {
             await pc.setRemoteDescription(new RTCSessionDescription(offer))
             this.pendingOffers.delete(targetId)
 
-            // Process Queued Candidates
+            // 处理队列中的 ICE 候选
             const queue = this.candidateQueues.get(targetId) || []
             while (queue.length > 0) {
                 const candidate = queue.shift()
@@ -176,38 +233,65 @@ class WebRTCService {
         }
     }
 
-    // Reject Call
+    // 拒绝通话
     rejectCall() {
         const callStore = useCallStore()
-        this.sendSignal('reject', null, this.targetId)
-        this.cleanup()
+
+        // 立即更新 UI 状态
         callStore.reset()
+
+        // 异步处理网络通知和清理
+        setTimeout(() => {
+            this.sendSignal('reject', null, this.targetId)
+            this.cleanup()
+        }, 0)
     }
 
-    // Hangup
+    // 挂断通话
     hangup() {
         const callStore = useCallStore()
 
-        // Notify ALL connected peers
-        this.peerConnections.forEach((_, peerId) => {
-            this.sendSignal('hangup', null, peerId)
-        })
-
-        this.cleanup()
+        // 立即更新 UI 状态
         callStore.endCall()
+
+        // 异步处理清理工作
+        setTimeout(() => {
+            this.peerConnections.forEach((_, peerId) => {
+                this.sendSignal('hangup', null, peerId)
+            })
+            this.cleanup()
+        }, 0)
     }
 
-    // Handle incoming signals
+    // 处理信令消息
     async handleSignal(data: any) {
         const callStore = useCallStore()
         const { type, payload, senderId, senderUserInfo } = data
 
         switch (type) {
             case 'offer':
-                // If we are already in a call (Group Mode), and this is a new participant
+                // 处理加入群聊请求
+                if (senderUserInfo.action === 'JOIN_GROUP_CALL') {
+                    console.log('[WebRTC] 收到成员加入群聊请求:', senderId)
+
+                    callStore.addParticipant(senderUserInfo, 'connecting')
+
+                    await this.createPeerConnection(senderId)
+                    const pc = this.peerConnections.get(senderId)
+
+                    if (pc) {
+                        await pc.setRemoteDescription(new RTCSessionDescription(payload))
+                        const answer = await pc.createAnswer()
+                        await pc.setLocalDescription(answer)
+                        this.sendSignal('answer', answer, senderId)
+                    }
+
+                    this.notifyOtherParticipants(senderId, senderUserInfo)
+                    break
+                }
+
+                // 群聊中的新成员
                 if (callStore.callState === 'connected' && callStore.callMode === 'group') {
-                    // Auto-accept logic for Mesh topology (if we are in the same group context)
-                    // For now, assume if we receive an offer while in group call, it's a new peer.
                     console.log('[WebRTC] Received offer from new peer in group call:', senderId)
 
                     callStore.addParticipant(senderUserInfo, 'connected')
@@ -221,7 +305,7 @@ class WebRTCService {
                         this.sendSignal('answer', answer, senderId)
                     }
                 } else {
-                    // Normal incoming call
+                    // 普通来电
                     if (senderId && senderUserInfo) {
                         await this.handleIncomingCall(senderId, senderUserInfo, payload, senderUserInfo.callMode || 'p2p')
                     }
@@ -232,11 +316,9 @@ class WebRTCService {
                 const pc = this.peerConnections.get(senderId)
                 if (pc) {
                     await pc.setRemoteDescription(new RTCSessionDescription(payload))
-                    // If this was the primary target, set state to connected
                     if (senderId === this.targetId && callStore.callState === 'calling') {
                         callStore.connectCall()
                     }
-                    // Update participant status
                     callStore.updateParticipantStatus(senderId, 'connected')
                 }
                 break
@@ -247,7 +329,7 @@ class WebRTCService {
                     if (pc && pc.remoteDescription) {
                         await pc.addIceCandidate(new RTCIceCandidate(payload))
                     } else {
-                        // Queue it
+                        // 加入队列等待处理
                         if (!this.candidateQueues.has(senderId)) {
                             this.candidateQueues.set(senderId, [])
                         }
@@ -257,14 +339,12 @@ class WebRTCService {
                 break
 
             case 'hangup':
-                // If P2P, end call. If Group, just remove that peer.
                 if (callStore.callMode === 'p2p') {
                     this.cleanup()
                     callStore.endCall()
                 } else {
                     this.closePeerConnection(senderId)
                     callStore.removeParticipant(senderId)
-                    // If no participants left? End call?
                     if (this.peerConnections.size === 0) {
                         this.cleanup()
                         callStore.endCall()
@@ -279,15 +359,29 @@ class WebRTCService {
                     this.cleanup()
                     callStore.reset()
                 } else {
-                    // Group mode: just mark as failed or remove
                     callStore.removeParticipant(senderId)
+                }
+                break
+
+            case 'new_member':
+                // 收到新成员加入通知
+                const { newMemberId, newMemberInfo } = data
+                console.log('[WebRTC] 收到新成员通知,建立连接:', newMemberId)
+
+                callStore.addParticipant(newMemberInfo, 'connecting')
+
+                await this.createPeerConnection(newMemberId)
+                const newPc = this.peerConnections.get(newMemberId)
+                if (newPc) {
+                    const offer = await newPc.createOffer()
+                    await newPc.setLocalDescription(offer)
+                    this.sendSignal('offer', offer, newMemberId)
                 }
                 break
         }
     }
 
-    // --- Internal Helpers ---
-
+    // 初始化本地媒体流
     private async initLocalMedia() {
         const callStore = useCallStore()
         if (this.localMediaStream) return
@@ -296,7 +390,7 @@ class WebRTCService {
             audio: true,
             video: callStore.callType === 'video' ? {
                 facingMode: 'user',
-                width: { ideal: 640 }, // Lower resolution for group calls
+                width: { ideal: 640 },
                 height: { ideal: 480 }
             } : false
         }
@@ -315,43 +409,39 @@ class WebRTCService {
         }
     }
 
+    // 创建对等连接
     private async createPeerConnection(targetId: string) {
         if (this.peerConnections.has(targetId)) return
 
         console.log('[WebRTC] Creating PC for', targetId)
         const pc = new RTCPeerConnection(rtcConfig)
 
-        // Add local tracks
+        // 添加本地轨道
         if (this.localMediaStream) {
             this.localMediaStream.getTracks().forEach(track => {
                 pc.addTrack(track, this.localMediaStream!)
             })
         }
 
-        // ICE Candidates
+        // ICE 候选处理
         pc.onicecandidate = (event) => {
             if (event.candidate) {
                 this.sendSignal('candidate', event.candidate, targetId)
             }
         }
 
-        // Connection State
+        // 连接状态监听
         pc.onconnectionstatechange = () => {
             console.log(`[WebRTC] Connection state with ${targetId}:`, pc.connectionState)
-            if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-                // Handle disconnection
-                // this.closePeerConnection(targetId) // Optional: auto-reconnect logic?
-            }
         }
 
-        // Remote Track
+        // 远程轨道处理
         pc.ontrack = (event) => {
             console.log(`[WebRTC] Received remote track from ${targetId}`, event.streams[0])
             const newMap = new Map(this.remoteStreams.value)
             newMap.set(targetId, event.streams[0])
             this.remoteStreams.value = newMap
 
-            // Legacy support
             if (!this.remoteStream.value) {
                 this.remoteStream.value = event.streams[0] || null
             }
@@ -360,6 +450,7 @@ class WebRTCService {
         this.peerConnections.set(targetId, pc)
     }
 
+    // 关闭对等连接
     private closePeerConnection(targetId: string) {
         const pc = this.peerConnections.get(targetId)
         if (pc) {
@@ -376,10 +467,31 @@ class WebRTCService {
         }
     }
 
+    // 通知其他参与者有新成员加入
+    private notifyOtherParticipants(newMemberId: string, newMemberInfo: any) {
+        const callStore = useCallStore()
+
+        callStore.participants.forEach((participant, participantId) => {
+            if (participantId !== newMemberId && participant.status === 'connected') {
+                console.log(`[WebRTC] 通知 ${participantId} 与新成员 ${newMemberId} 建立连接`)
+
+                wsService.send({
+                    type: WSReqType.RTC_SIGNAL,
+                    userId: participantId,
+                    data: JSON.stringify({
+                        type: 'new_member',
+                        newMemberId: newMemberId,
+                        newMemberInfo: newMemberInfo
+                    })
+                })
+            }
+        })
+    }
+
+    // 发送信令
     private sendSignal(type: string, payload: any, targetId: string) {
         const callStore = useCallStore()
 
-        // Get current user info
         const userStr = localStorage.getItem('userInfo')
         let rawUserInfo: any = {}
         try { rawUserInfo = JSON.parse(userStr || '{}') } catch (e) { }
@@ -405,6 +517,7 @@ class WebRTCService {
         })
     }
 
+    // 更新媒体状态
     updateMediaState() {
         const callStore = useCallStore()
         if (this.localMediaStream) {
@@ -413,21 +526,22 @@ class WebRTCService {
         }
     }
 
+    // 切换静音
     toggleMute() {
         const callStore = useCallStore()
         callStore.isMuted = !callStore.isMuted
         this.updateMediaState()
     }
 
+    // 切换摄像头开关
     toggleVideo() {
         const callStore = useCallStore()
         callStore.isCameraOn = !callStore.isCameraOn
         this.updateMediaState()
     }
 
+    // 切换前后摄像头
     async switchCamera() {
-        // ... (Keep existing switchCamera logic, but apply to ALL peer connections)
-        // For simplicity, just replacing track in local stream and then replacing sender track in all PCs
         const callStore = useCallStore()
         if (callStore.callType !== 'video' || !this.localMediaStream) return
 
@@ -444,7 +558,7 @@ class WebRTCService {
             this.localMediaStream = newStream
             this.localStream.value = newStream
 
-            // Replace track in all PCs
+            // 替换所有连接中的视频轨道
             this.peerConnections.forEach(pc => {
                 const sender = pc.getSenders().find(s => s.track?.kind === 'video')
                 if (sender && videoTrack) sender.replaceTrack(videoTrack)
@@ -456,8 +570,9 @@ class WebRTCService {
         }
     }
 
-    public connectionState = shallowRef<string>('connected') // Simplified for group
+    public connectionState = shallowRef<string>('connected')
 
+    // 清理资源
     private cleanup() {
         if (this.localMediaStream) {
             this.localMediaStream.getTracks().forEach(t => t.stop())

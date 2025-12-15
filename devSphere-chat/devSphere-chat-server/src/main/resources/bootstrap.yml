@@ -1,5 +1,4 @@
 server:
-  port: 8088
   servlet:
     context-path: /devSphere
 spring:
@@ -44,6 +43,5 @@ spring:
             refresh: true
 logging:
   level:
-    org:
       springframework:
         security=DEBUG:

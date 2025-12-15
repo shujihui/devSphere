@@ -186,6 +186,25 @@ class WebSocketService {
     }
   }
 
+  constructor() {
+    this.initVisibilityListener()
+  }
+
+  private initVisibilityListener() {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[WS] 页面恢复可见，检查连接...')
+        if (this.status.value === WSStatus.CLOSED || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
+          console.log('[WS] 连接已断开，立即重连')
+          this.reconnect()
+        } else {
+          // 立即发送一次心跳，激活保活
+          this.send({ type: WSReqType.HEARTBEAT })
+        }
+      }
+    })
+  }
+
   // 主动关闭
   close() {
     this.stopHeartbeat()
